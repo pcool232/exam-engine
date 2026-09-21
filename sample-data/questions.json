@@ -1,0 +1,32 @@
+[
+  {
+    "question": "What does HTTP stand for?",
+    "options": [
+      "HyperText Transfer Protocol",
+      "High Transfer Text Process",
+      "Hyperlink Transmission Protocol",
+      "Host Transfer Type Protocol"
+    ],
+    "correct": "A",
+    "explanation": "HTTP is the protocol used to move web pages across the internet.",
+    "marks": 1
+  },
+  {
+    "question": "Which TWO of these are programming languages?",
+    "type": "multiple",
+    "options": [
+      { "text": "Python", "correct": true },
+      { "text": "HTML" },
+      { "text": "JavaScript", "correct": true },
+      { "text": "JPEG" }
+    ],
+    "explanation": "HTML is a markup language and JPEG is an image format."
+  },
+  {
+    "question": "How many bits are in one byte?",
+    "options": ["4", "8", "16", "32"],
+    "correct": 1,
+    "explanation": "A numeric 'correct' value is a zero-based index, so 1 means the second option.",
+    "marks": 1
+  }
+]

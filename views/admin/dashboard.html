@@ -1,0 +1,115 @@
+<div class="page-head">
+  <div>
+    <h1>Administration</h1>
+    <p>Load past papers, manage students, and track results.</p>
+  </div>
+  <div class="head-actions">
+    <a class="button" href="/admin/import">Import an exam file</a>
+    <a class="button button-secondary" href="/admin/exams/new">New empty exam</a>
+  </div>
+</div>
+
+<div class="grid grid-4" style="margin-bottom:1.5rem">
+  <div class="stat">
+    <div class="stat-value">{{ stats.exams }}</div>
+    <div class="stat-label">Exams ({{ stats.publishedExams }} live)</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ stats.questions }}</div>
+    <div class="stat-label">Questions in the bank</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ stats.students }}</div>
+    <div class="stat-label">Registered students</div>
+  </div>
+  <div class="stat">
+    <div class="stat-value">{{ stats.attempts }}</div>
+    <div class="stat-label">Papers written</div>
+  </div>
+</div>
+
+{% if stats.attempts > 0 %}
+  <div class="grid grid-2" style="margin-bottom:1.5rem">
+    <div class="stat">
+      <div class="stat-value">{{ stats.averageScore === null ? '—' : stats.averageScore + '%' }}</div>
+      <div class="stat-label">Average score across all attempts</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ stats.passRate === null ? '—' : stats.passRate + '%' }}</div>
+      <div class="stat-label">Pass rate</div>
+    </div>
+  </div>
+{% endif %}
+
+<div class="grid grid-2">
+  <div class="card">
+    <div class="card-title">
+      <h2>Exams</h2>
+      <a class="small" href="/admin/exams">Manage all</a>
+    </div>
+
+    {% if exams.length === 0 %}
+      <div class="empty">
+        <h3>No exams yet</h3>
+        <p>Upload a prepared exam file, or create an empty paper and add questions to it.</p>
+        <p>
+          <a class="button" href="/admin/import">Import an exam file</a>
+          <a class="button button-secondary" href="/admin/exams/new">New empty exam</a>
+        </p>
+      </div>
+    {% else %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Title</th><th>Questions</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for exam in exams %}
+              <tr>
+                <td>
+                  <a href="/admin/exams/{{ exam.id }}">{{ exam.title }}</a>
+                  {% if exam.exam_code %}<span class="muted tiny"> · {{ exam.exam_code }}</span>{% endif %}
+                </td>
+                <td>{{ exam.question_count }}</td>
+                <td>
+                  {% if exam.is_published %}<span class="badge badge-live">Live</span>
+                  {% else %}<span class="badge badge-draft">Draft</span>{% endif %}
+                </td>
+                <td class="actions"><a class="small" href="/admin/exams/{{ exam.id }}/edit">Settings</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <h2>Latest results</h2>
+      <a class="small" href="/admin/results">See all</a>
+    </div>
+
+    {% if recentAttempts.length === 0 %}
+      <p class="muted small">No papers have been written yet.</p>
+    {% else %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Student</th><th>Exam</th><th>Score</th><th></th></tr></thead>
+          <tbody>
+            {% for attempt in recentAttempts %}
+              <tr>
+                <td>{{ attempt.full_name }}</td>
+                <td class="small">{{ attempt.exam_title }}</td>
+                <td class="nowrap">
+                  {{ attempt.percentage }}%
+                  {% if attempt.passed %}<span class="badge badge-pass">Pass</span>
+                  {% else %}<span class="badge badge-fail">Fail</span>{% endif %}
+                </td>
+                <td class="actions"><a class="small" href="/results/{{ attempt.id }}">View</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>

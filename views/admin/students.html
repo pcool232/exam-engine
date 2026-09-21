@@ -1,0 +1,154 @@
+<div class="page-head">
+  <div>
+    <h1>Students</h1>
+    <p>Accounts that can sit exams, plus the administrators who manage them.</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card" style="grid-column: 1 / -1">
+    <form method="get" action="/admin/students" class="row" style="margin-bottom:1rem">
+      <input type="search" name="q" value="{{ search }}" placeholder="Search by name, email or student number" style="max-width:340px">
+      <button type="submit" class="button button-secondary button-small">Search</button>
+      {% if search %}<a class="small" href="/admin/students">Clear</a>{% endif %}
+    </form>
+
+    {% if students.length === 0 %}
+      <div class="empty">
+        <h3>{% if search %}Nothing matched "{{ search }}"{% else %}No students yet{% endif %}</h3>
+        <p>Students can register themselves, or you can create accounts below.</p>
+      </div>
+    {% else %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th><th>Email</th><th>Student no.</th>
+              <th>Papers</th><th>Average</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for student in students %}
+              <tr>
+                <td><strong>{{ student.full_name }}</strong></td>
+                <td class="small">{{ student.email }}</td>
+                <td class="small">{{ student.student_number || '—' }}</td>
+                <td>{{ student.attempt_count }}</td>
+                <td class="nowrap">{{ student.average_score === null ? '—' : student.average_score + '%' }}</td>
+                <td>
+                  {% if student.is_active %}<span class="badge badge-live">Active</span>
+                  {% else %}<span class="badge badge-draft">Disabled</span>{% endif %}
+                </td>
+                <td class="actions">
+                  <a class="small" href="/admin/results?student={{ student.id }}">Results</a>
+                  <form method="post" action="/admin/students/{{ student.id }}/toggle" class="inline-form">
+                    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                    <button type="submit" class="link-button small">{{ student.is_active ? 'Disable' : 'Enable' }}</button>
+                  </form>
+                  <form method="post" action="/admin/students/{{ student.id }}/delete" class="inline-form"
+                        onsubmit="return confirm('Delete {{ student.full_name }} and all of their results?')">
+                    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                    <button type="submit" class="link-button link-danger small">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Create an account</h2>
+    <p class="muted small">Useful for students who cannot register themselves, or for a second administrator.</p>
+
+    <form method="post" action="/admin/students/new">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+      <div class="field">
+        <label for="fullName">Full name</label>
+        <input type="text" id="fullName" name="fullName" required>
+      </div>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      <div class="field">
+        <label for="studentNumber">Student number <span class="muted">(optional)</span></label>
+        <input type="text" id="studentNumber" name="studentNumber">
+      </div>
+      <div class="field">
+        <label for="password">Temporary password</label>
+        <input type="text" id="password" name="password" required>
+        <p class="hint">At least 8 characters with a letter and a number. Ask them to change it after signing in.</p>
+      </div>
+      <div class="field">
+        <label for="role">Role</label>
+        <select id="role" name="role">
+          <option value="student">Student</option>
+          <option value="admin">Administrator</option>
+        </select>
+      </div>
+      <button type="submit" class="button">Create account</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Administrators</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+        <tbody>
+          {% for admin in admins %}
+            <tr>
+              <td>{{ admin.full_name }}{% if admin.id === currentUser.id %} <span class="badge">You</span>{% endif %}</td>
+              <td class="small">{{ admin.email }}</td>
+              <td class="actions">
+                {% if admin.id !== currentUser.id %}
+                  <form method="post" action="/admin/students/{{ admin.id }}/delete" class="inline-form"
+                        onsubmit="return confirm('Remove this administrator?')">
+                    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                    <button type="submit" class="link-button link-danger small">Remove</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:1.2rem">Reset a password</h3>
+    <form method="post" action="/admin/students/0/reset-password" id="resetForm">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+      <div class="field">
+        <label for="resetUser">Account</label>
+        <select id="resetUser" required>
+          <option value="">Choose an account…</option>
+          {% for student in students %}
+            <option value="{{ student.id }}">{{ student.full_name }} — {{ student.email }}</option>
+          {% endfor %}
+          {% for admin in admins %}
+            <option value="{{ admin.id }}">{{ admin.full_name }} — {{ admin.email }} (admin)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="newPassword">New password</label>
+        <input type="text" id="newPassword" name="password" required>
+      </div>
+      <button type="submit" class="button button-secondary">Reset password</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('resetForm');
+  var select = document.getElementById('resetUser');
+  form.addEventListener('submit', function (event) {
+    if (!select.value) { event.preventDefault(); return; }
+    form.action = '/admin/students/' + select.value + '/reset-password';
+  });
+})();
+</script>

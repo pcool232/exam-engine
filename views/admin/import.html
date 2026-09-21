@@ -1,0 +1,158 @@
+{% if exam %}
+  <p class="small"><a href="/admin/exams/{{ exam.id }}">&larr; Back to {{ exam.title }}</a></p>
+{% else %}
+  <p class="small"><a href="/admin/exams">&larr; Back to exams</a></p>
+{% endif %}
+
+<div class="page-head">
+  <div>
+    {% if exam %}
+      <h1>Import questions</h1>
+      <p>Add questions to <strong>{{ exam.title }}</strong>. Nothing is saved until you review what was read.</p>
+    {% else %}
+      <h1>Import an exam file</h1>
+      <p>Upload a prepared exam file and it becomes a new paper, questions and all. Nothing is saved until you review it.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if errors.length > 0 %}
+  <div class="notice notice-error">
+    <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<div class="card" style="max-width:900px">
+  <form method="post" action="{{ exam ? '/admin/exams/' + exam.id + '/import' : '/admin/import' }}"
+        enctype="multipart/form-data">
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+    <div class="upload-drop">
+      <label class="field-label" for="file">Choose a file</label>
+      <input type="file" id="file" name="file"
+             accept=".json,.csv,.txt,.md,.docx,.pdf,application/json,text/csv,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+      <p class="hint">
+        JSON, CSV, Word (.docx), PDF or plain text. Up to 25&nbsp;MB.
+        {% if !exam %}A JSON file may carry the exam's title, time limit and pass mark, which are filled in for you on the next screen.{% endif %}
+      </p>
+    </div>
+
+    <div class="or-divider"><span>or paste the questions</span></div>
+
+    <div class="field">
+      <label class="field-label" for="pastedText">Paste past-paper text, CSV rows or JSON</label>
+      <textarea id="pastedText" name="pastedText" rows="10" class="code"
+                placeholder="1. What is the capital city of Kenya?&#10;A. Mombasa&#10;B. Nairobi&#10;C. Kisumu&#10;Answer: B&#10;Explanation: Nairobi is the capital.">{{ pastedText }}</textarea>
+      <p class="hint">Leave this empty if you are uploading a file. If you fill in both, the file wins.</p>
+    </div>
+
+    <div class="field" style="max-width:280px">
+      <label class="field-label" for="format">Read it as</label>
+      <select id="format" name="format">
+        <option value="auto">Detect automatically</option>
+        <option value="text">Past-paper text</option>
+        <option value="csv">CSV spreadsheet</option>
+        <option value="json">JSON</option>
+        <option value="docx">Word document</option>
+        <option value="pdf">PDF document</option>
+      </select>
+      <p class="hint">Only change this if automatic detection gets it wrong.</p>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="button">Read the questions</button>
+      <a class="button button-secondary" href="{{ exam ? '/admin/exams/' + exam.id : '/admin/exams' }}">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="max-width:900px">
+  <h2>Accepted formats</h2>
+
+  <details class="help" {% if !exam %}open{% endif %}>
+    <summary>JSON &mdash; the only format that can carry pictures and exam settings</summary>
+<pre>{
+  "exam": {
+    "title": "Design and Technology Paper 1",
+    "code": "17/1",
+    "subject": "Design and Technology",
+    "year": "October/November 2018",
+    "durationMinutes": 60,
+    "passMark": 50,
+    "shuffleQuestions": false,
+    "shuffleOptions": false,
+    "showAnswers": true
+  },
+  "questions": [
+    {
+      "question": "What is 2 + 2?",
+      "options": ["3", "4", "5"],
+      "correct": "B",
+      "explanation": "Basic addition",
+      "marks": 1,
+      "image": "data:image/jpeg;base64,..."
+    }
+  ]
+}</pre>
+    <p class="small muted">
+      The <code>exam</code> block is optional and is used only when you import a
+      whole file as a new paper; you can change every value on the next screen.
+      Options may also be objects: <code>{"text": "4", "correct": true}</code>.
+      <code>correct</code> takes a letter, a zero-based index, the full option
+      text, or an array of those. <code>image</code> takes a <code>data:</code>
+      URI, a <code>/static/&hellip;</code> path or an <code>https://</code> URL.
+    </p>
+  </details>
+
+  <details class="help" style="margin-top:.6rem" {% if exam %}open{% endif %}>
+    <summary>Past-paper text (pasted or in a .txt, .docx or .pdf file)</summary>
+<pre>1. What is the capital city of Kenya?
+A. Mombasa
+B. Nairobi
+C. Kisumu
+D. Eldoret
+Answer: B
+Explanation: Nairobi has been the capital since 1907.
+
+Question 2
+Which TWO of these are prime numbers? (Choose two)
+A) 9
+B) 11
+C) 15
+D) 17
+Correct Answers: B, D</pre>
+    <p class="small muted">
+      Also understood: <code>Ans:</code>, <code>Key:</code>, <code>Correct Answer:</code>,
+      options written as <code>(A)</code> or <code>A)</code>, and a leading
+      <code>*</code> to mark the right option instead of an answer line.
+      "Choose two" makes a question multiple-answer automatically.
+      Options must be lettered A&ndash;J.
+    </p>
+  </details>
+
+  <details class="help" style="margin-top:.6rem">
+    <summary>CSV spreadsheet</summary>
+<pre>question,option_a,option_b,option_c,option_d,correct,explanation
+What is 7 x 8?,54,56,48,64,B,Seven eights are fifty-six
+Which are mammals?,Whale,Shark,Bat,Trout,"A,C",Mammals nurse their young</pre>
+    <p class="small muted">
+      A header row is required. Recognised columns: <code>question</code>,
+      <code>option_a</code>&hellip;<code>option_j</code>, <code>correct</code>
+      (also <code>answer</code> or <code>key</code>), <code>explanation</code>,
+      <code>type</code>, <code>marks</code> and <code>image</code>.
+      The answer cell takes <code>B</code>, <code>A,C</code>, <code>AC</code>,
+      or the full text of an option.
+    </p>
+  </details>
+
+  <details class="help" style="margin-top:.6rem">
+    <summary>Word and PDF</summary>
+    <p class="small muted" style="margin-top:.4rem">
+      The text is pulled out of the document and then read exactly like pasted
+      past-paper text, so the same layout rules apply, and pictures in the
+      document are not carried across. A PDF made by scanning paper holds
+      images rather than text, so nothing can be extracted from it &mdash; for
+      those, type or paste the questions instead.
+    </p>
+  </details>
+</div>

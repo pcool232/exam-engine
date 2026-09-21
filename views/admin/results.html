@@ -1,0 +1,69 @@
+<div class="page-head">
+  <div>
+    <h1>Results</h1>
+    {% if student %}
+      <p>Papers written by <strong>{{ student.full_name }}</strong> · <a href="/admin/results">show everyone</a></p>
+    {% else %}
+      <p>Every submitted paper, newest first.</p>
+    {% endif %}
+  </div>
+  <div class="head-actions">
+    <a class="button button-secondary" href="{{ csvUrl }}">Download CSV</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" action="/admin/results" class="row" style="margin-bottom:1rem">
+    {% if student %}<input type="hidden" name="student" value="{{ student.id }}">{% endif %}
+    <label for="exam" class="small muted">Filter by exam</label>
+    <select id="exam" name="exam" style="max-width:340px" onchange="this.form.submit()">
+      <option value="">All exams</option>
+      {% for exam in exams %}
+        <option value="{{ exam.id }}" {% if selectedExam === exam.id %}selected{% endif %}>{{ exam.title }}</option>
+      {% endfor %}
+    </select>
+    <noscript><button type="submit" class="button button-secondary button-small">Apply</button></noscript>
+  </form>
+
+  {% if attempts.length === 0 %}
+    <div class="empty">
+      <h3>No results yet</h3>
+      <p>Results appear as soon as students start submitting papers.</p>
+    </div>
+  {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Student</th><th>Exam</th><th>Score</th><th>Percentage</th>
+            <th>Result</th><th>Submitted</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for attempt in attempts %}
+            <tr>
+              <td>
+                <strong>{{ attempt.full_name }}</strong>
+                <div class="muted tiny">{{ attempt.student_number || attempt.email }}</div>
+              </td>
+              <td class="small">{{ attempt.exam_title }}</td>
+              <td class="nowrap">{{ attempt.score }} / {{ attempt.total_marks }}</td>
+              <td class="nowrap">
+                <div class="progress {% if attempt.passed %}is-pass{% else %}is-fail{% endif %}" style="width:60px;display:inline-block;vertical-align:middle">
+                  <span style="width: {{ Math.max(2, attempt.percentage) }}%"></span>
+                </div>
+                <span class="small">{{ attempt.percentage }}%</span>
+              </td>
+              <td>
+                {% if attempt.passed %}<span class="badge badge-pass">Pass</span>
+                {% else %}<span class="badge badge-fail">Fail</span>{% endif %}
+              </td>
+              <td class="muted small nowrap">{{ attempt.submitted_at }}</td>
+              <td class="actions"><a class="small" href="/results/{{ attempt.id }}">Review</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>

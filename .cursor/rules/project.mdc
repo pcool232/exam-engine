@@ -1,0 +1,174 @@
+---
+description: Architecture, conventions and hard constraints for the Revision Engine codebase
+globs: ["**/*.js", "**/*.html", "**/*.css"]
+alwaysApply: true
+---
+
+# Revision Engine — working rules
+
+An exam revision engine: administrators load past examination papers, students
+sit them online as multiple-choice practice exams and are marked instantly.
+
+## Hard constraints — do not break these
+
+1. **Zero runtime dependencies.** `package.json` has an empty `dependencies`
+   block and that is deliberate. Do NOT add Express, better-sqlite3, bcrypt,
+   EJS, multer, dotenv, or any other package. Everything is built on Node's
+   built-in modules. If a task seems to need a library, write it in
+   `src/core/` or `src/lib/` instead, or say why the constraint should change —
+   never quietly `npm install`.
+2. **Node 22.5+ only.** The database is Node's built-in `node:sqlite`
+   (`DatabaseSync`), not a native driver. `src/db.js` exits with a friendly
+   message on older versions; keep that check.
+3. **No build step.** No bundler, no transpiler, no TypeScript compile, no
+   framework. Edit a file, restart (or `npm run dev`), reload the page.
+4. **CommonJS**, not ESM. Use `require` / `module.exports`. Keep
+   `"type": "commonjs"` in package.json.
+
+## Layout
+
+```
+server.js            start-up, middleware pipeline, route registration, error pages
+src/config.js        env config (.env loader written by hand)
+src/db.js            SQLite connection + schema (node:sqlite)
+src/seed.js          creates the first administrator and a sample exam
+src/core/            the hand-rolled web framework
+  app.js             router, middleware chain, req/res helpers
+  body.js            urlencoded / JSON / multipart (file upload) parsing
+  session.js         SQLite-backed sessions + CSRF tokens
+  static.js          static file serving
+  template.js        the HTML template engine
+src/lib/password.js  scrypt hashing
+src/lib/parsers/     question importers: text, csv, json, docx, pdf
+src/middleware/auth.js  sign-in state, role guards, CSRF check, flash messages
+src/models/          users, exams (+questions), attempts (+marking)
+src/routes/          auth, student, admin handlers
+views/               templates (.html)
+public/              stylesheet + exam-runner script
+sample-data/         example import files
+```
+
+## Template engine
+
+`views/*.html` are compiled by `src/core/template.js`. The syntax is:
+
+- `{{ expr }}` — HTML-escaped output (the default; use it for anything a user typed)
+- `{{{ expr }}}` — raw output (only for trusted HTML, e.g. the layout's `body`)
+- `{% if x %}` / `{% elif x %}` / `{% else %}` / `{% endif %}`
+- `{% for item in list %}` / `{% for item, index in list %}` / `{% endfor %}`
+- `{% set name = expr %}`
+- `{% include "partials/foo.html" %}`
+- `{# comment #}`
+
+Expressions are plain JavaScript evaluated against the render data. **Every
+variable a template references must exist in the render data** — the compiled
+function uses `with(data)`, so a missing key throws a ReferenceError at render
+time. When you add a variable to a template, add it to the `res.render(...)`
+call too.
+
+## Route handlers
+
+Registered as `app.get(path, ...handlers)` / `app.post(...)` inside
+`src/routes/*.js`, which each export a `register(app)` function called from
+`server.js`. Path params use `:name` (`/admin/exams/:id/edit`).
+
+Handlers receive `(req, res)` with:
+`req.params`, `req.query`, `req.body`, `req.files`, `req.session`, `req.user`,
+`res.render(view, data)`, `res.redirect(url)`, `res.json(data)`,
+`res.send(body, contentType)`, `res.status(code)`.
+
+Guards: `requireAdmin` for admin routes, `requireStudent` for signed-in pages.
+Throw an error with `err.statusCode = 404` (or 403) to render the error page.
+
+## Security rules — keep these intact
+
+- Every POST form must include `<input type="hidden" name="_csrf" value="{{ csrfToken }}">`.
+  `verifyCsrf` rejects POSTs without a matching token. Fetch calls send it as
+  the `X-CSRF-Token` header instead.
+- All SQL uses prepared statements with bound parameters. Never build SQL by
+  string concatenation.
+- Passwords go through `src/lib/password.js` (scrypt). Never store or log a
+  plain password.
+- Output is escaped by `{{ }}`. Only use `{{{ }}}` for HTML you generated.
+- Students may only read their own results; check ownership in the handler.
+
+## Marking
+
+In `src/models/attempts.js`. A question is correct only when the selected
+option set matches the correct set **exactly** — so on a multiple-answer
+question, one of two correct options scores zero, and both correct plus a wrong
+one also scores zero. No negative marking. Marks default to 1 per question.
+
+An attempt freezes its question order and option order at start time
+(`question_ids` and `option_order` columns) so refreshing never reshuffles a
+paper mid-exam. Preserve that behaviour.
+
+## The exam runner
+
+`views/student/attempt.html` renders **every** question into one form, and
+`public/js/attempt.js` then shows one at a time with Previous/Next, the
+numbered grid in the sidebar, and the left/right arrow keys. Two things follow
+from that and must not be broken:
+
+- Hiding a question does not stop its inputs being submitted, which is why the
+  whole paper still posts in a single request. Never disable the inputs of a
+  hidden question.
+- Without JavaScript every question simply stays on the page and the form works
+  as one long list. Keep that fallback: the pager starts with the `hidden`
+  attribute and the script removes it.
+
+Answers also save individually in the background (`POST /attempts/:id/answer`),
+so a student can close the tab and resume where they left off — the runner
+opens on the first unanswered question.
+
+## Question importers
+
+`src/lib/parsers/index.js` dispatches by file type. Each parser returns
+`{ questions, issues }` — `issues` explains what could not be read so the
+admin sees it on the import preview screen. Never silently drop a question:
+add an entry to `issues`. The JSON parser also returns `exam`: settings read
+from an optional `exam` block in the file, used by the create-an-exam-from-a-
+file flow.
+
+There are two import routes, both ending at a preview the admin must confirm:
+
+- `/admin/import` — upload a file and it becomes a **new** exam. The preview
+  shows an editable settings form, pre-filled from the file when it has an
+  `exam` block.
+- `/admin/exams/:id/import` — add questions to an exam that already exists.
+
+Both render `views/admin/import.html` and `views/admin/import-preview.html`,
+which branch on whether `exam` is set. The file picker must stay visible
+without JavaScript — do not put it behind a tab or an accordion again.
+
+Options are lettered A–J. The admin confirms on a preview screen before
+anything is written to the database.
+
+A question may carry a picture in `questions.image` — a `data:` URI, a
+`/static/…` path or an `https://…` URL. Only the JSON and CSV importers can
+supply one (`image` / `figure` / `diagram` columns or keys); the past-paper text
+parser cannot, because plain text has nowhere to put a picture. The image
+renders above the options in the exam runner and in the answer review. When a
+paper's *options* are pictures, embed the whole lettered figure in the question
+and make the option text "Shown at A", "Shown at B" and so on — and turn option
+shuffling off for that exam, or the letters stop matching.
+
+## Style
+
+- Two-space indent, semicolons, single quotes in JS, double quotes in HTML attributes.
+- `'use strict';` at the top of every JS file.
+- British spelling in user-facing copy ("practise" as a verb, "organisation").
+- Comments explain *why*, not *what*. Keep them sparse.
+- Plain, direct copy in the UI. No exclamation marks.
+
+## Running it
+
+```bash
+npm run seed      # create the database + first administrator
+npm start         # http://localhost:3000
+npm run dev       # auto-restart on file changes
+npm run reset-db  # wipe everything and re-seed
+```
+
+There is no test runner in the repo. When you change marking, parsing or
+auth, exercise the change by running the server and walking the flow.

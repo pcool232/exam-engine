@@ -1,0 +1,149 @@
+<p class="small"><a href="/admin/exams">← Back to exams</a></p>
+
+<div class="page-head">
+  <div>
+    <h1>{{ exam.title }}</h1>
+    <div class="exam-meta">
+      {% if exam.category %}<span>{{ exam.category }}</span>{% else %}<span class="badge badge-fail">No level set</span>{% endif %}
+      {% if exam.exam_code %}<span>{{ exam.exam_code }}</span>{% endif %}
+      {% if exam.subject %}<span>{{ exam.subject }}</span>{% endif %}
+      {% if exam.year %}<span>{{ exam.year }}</span>{% endif %}
+      <span>{{ questions.length }} question{% if questions.length !== 1 %}s{% endif %}</span>
+      <span>{{ exam.duration_minutes > 0 ? exam.duration_minutes + ' min' : 'No time limit' }}</span>
+      <span>Pass {{ exam.pass_mark }}%</span>
+      {% if exam.is_published %}<span class="badge badge-live">Live</span>
+      {% else %}<span class="badge badge-draft">Draft</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="head-actions">
+    <a class="button" href="/admin/exams/{{ exam.id }}/import">Import questions</a>
+    <a class="button button-secondary" href="/admin/exams/{{ exam.id }}/questions/new">Add one question</a>
+    <a class="button button-secondary" href="/admin/exams/{{ exam.id }}/edit">Settings</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="spread">
+    <div>
+      <h2 style="margin:0">{{ exam.is_published ? 'This paper is live' : 'This paper is a draft' }}</h2>
+      <p class="muted small" style="margin:.2rem 0 0">
+        {% if exam.is_published %}
+          Students can see it on their dashboard and sit it now.
+        {% else %}
+          Only administrators can see it. Publish when the questions are ready.
+        {% endif %}
+      </p>
+    </div>
+    <div class="row">
+      <form method="post" action="/admin/exams/{{ exam.id }}/publish" class="inline-form">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <input type="hidden" name="publish" value="{{ exam.is_published ? '0' : '1' }}">
+        <button type="submit" class="button {% if exam.is_published %}button-secondary{% endif %}">
+          {{ exam.is_published ? 'Unpublish' : 'Publish for students' }}
+        </button>
+      </form>
+      <a class="button button-secondary button-small" href="/admin/exams/{{ exam.id }}/export.json">Export JSON</a>
+      <form method="post" action="/admin/exams/{{ exam.id }}/delete" class="inline-form"
+            onsubmit="return confirm('Delete this exam, all of its questions and all student results for it? This cannot be undone.')">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="link-button link-danger small">Delete exam</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">
+    <h2>Questions</h2>
+    <span class="muted small">{{ questions.length }} in the bank</span>
+  </div>
+
+  {% if questions.length === 0 %}
+    <div class="empty">
+      <h3>No questions yet</h3>
+      <p>Upload a past paper, paste its text, or add questions one at a time.</p>
+      <p>
+        <a class="button" href="/admin/exams/{{ exam.id }}/import">Import questions</a>
+        <a class="button button-secondary" href="/admin/exams/{{ exam.id }}/questions/new">Add one question</a>
+      </p>
+    </div>
+  {% else %}
+    <div class="stack" style="gap:.6rem">
+      {% for question, index in questions %}
+        <div class="preview-item" id="q{{ question.id }}">
+          <div class="preview-head">
+            <span class="question-number">{{ index + 1 }}</span>
+            <div style="flex:1">
+              <p style="margin:0;white-space:pre-wrap">{{ question.question_text }}</p>
+              <div class="muted tiny" style="margin-top:.2rem">
+                {{ question.question_type === 'multiple' ? 'Multiple answers' : 'Single answer' }} ·
+                {{ question.marks }} mark{% if question.marks !== 1 %}s{% endif %}
+                {% if question.image %} · has a diagram{% endif %}
+              </div>
+              {% if question.image %}
+                <img class="figure-thumb" src="{{ question.image }}" alt="" loading="lazy">
+              {% endif %}
+              <ul>
+                {% for option in question.options %}
+                  <li class="{% if option.is_correct %}correct{% endif %}">
+                    {{ option.label }}. {{ option.option_text }}{% if option.is_correct %} ✓{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+              {% if question.explanation %}
+                <p class="muted tiny" style="margin:.4rem 0 0"><em>{{ question.explanation }}</em></p>
+              {% endif %}
+            </div>
+            <div class="right nowrap">
+              <a class="small" href="/admin/questions/{{ question.id }}/edit">Edit</a>
+              <div class="row" style="justify-content:flex-end;gap:.3rem;margin-top:.3rem">
+                <form method="post" action="/admin/questions/{{ question.id }}/move" class="inline-form">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <input type="hidden" name="direction" value="up">
+                  <button type="submit" class="link-button tiny" title="Move up">↑</button>
+                </form>
+                <form method="post" action="/admin/questions/{{ question.id }}/move" class="inline-form">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <input type="hidden" name="direction" value="down">
+                  <button type="submit" class="link-button tiny" title="Move down">↓</button>
+                </form>
+                <form method="post" action="/admin/questions/{{ question.id }}/delete" class="inline-form"
+                      onsubmit="return confirm('Delete this question?')">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <button type="submit" class="link-button link-danger tiny">Delete</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+{% if performance.length > 0 && attemptCount > 0 %}
+  <div class="card">
+    <div class="card-title">
+      <h2>Hardest questions</h2>
+      <span class="muted small">Lowest success rate first</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Question</th><th>Answered</th><th>Correct</th><th>Success</th></tr></thead>
+        <tbody>
+          {% for row in performance %}
+            {% if row.times_answered > 0 %}
+              <tr>
+                <td class="small">{{ row.question_text.slice(0, 90) }}{% if row.question_text.length > 90 %}…{% endif %}</td>
+                <td>{{ row.times_answered }}</td>
+                <td>{{ row.times_correct }}</td>
+                <td class="nowrap">{{ row.correct_rate }}%</td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}

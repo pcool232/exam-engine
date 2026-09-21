@@ -1,0 +1,105 @@
+{% set percentage = attempt.percentage || 0 %}
+{% set dialColor = attempt.passed ? 'var(--success)' : 'var(--danger)' %}
+
+<div class="page-head">
+  <div>
+    <h1>{{ exam.title }}</h1>
+    <p class="small">Submitted {{ attempt.submitted_at }}{% if viewingAsAdmin %} · viewing as administrator{% endif %}</p>
+  </div>
+  <div class="head-actions">
+    {% if viewingAsAdmin %}
+      <a class="button button-secondary" href="/admin/results">Back to results</a>
+    {% else %}
+      <a class="button button-secondary" href="/dashboard">Back to exams</a>
+      <a class="button" href="/exams/{{ exam.id }}">Try again</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="score-hero">
+    <div class="score-dial" style="--pct: {{ percentage }}; --dial-color: {{ dialColor }}">
+      <div class="score-dial-inner">
+        <div class="score-dial-value">{{ percentage }}%</div>
+        <div class="score-dial-label">{{ attempt.score }} / {{ attempt.total_marks }} marks</div>
+      </div>
+    </div>
+
+    <div>
+      <p style="margin:0 0 .4rem">
+        {% if attempt.passed %}
+          <span class="badge badge-pass">Pass</span>
+        {% else %}
+          <span class="badge badge-fail">Fail</span>
+        {% endif %}
+        <span class="muted small">Pass mark {{ exam.pass_mark }}%</span>
+      </p>
+
+      <h2 style="margin:0 0 .6rem">
+        {% if attempt.passed %}Well done — you passed this paper.{% else %}Not this time. Review the answers below.{% endif %}
+      </h2>
+
+      <div class="grid grid-3">
+        <div class="stat">
+          <div class="stat-value" style="color:var(--success)">{{ correctCount }}</div>
+          <div class="stat-label">Correct</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" style="color:var(--danger)">{{ incorrectCount }}</div>
+          <div class="stat-label">Incorrect</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" style="color:var(--warning)">{{ unansweredCount }}</div>
+          <div class="stat-label">Not answered</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 style="margin-top:1.5rem">Question review</h2>
+
+{% if !showAnswers %}
+  <div class="notice notice-info">
+    The administrator has turned off answer review for this paper, so only your score is shown.
+  </div>
+{% else %}
+  {% for item in review %}
+    <section class="question review-question {% if item.isCorrect %}is-correct{% elif item.answered %}is-wrong{% else %}is-blank{% endif %}">
+      <div class="question-head">
+        <span class="question-number">{{ item.number }}</span>
+        <div style="flex:1">
+          <p class="question-text">{{ item.question.question_text }}</p>
+        </div>
+        <span class="badge {% if item.isCorrect %}badge-pass{% elif item.answered %}badge-fail{% else %}badge-draft{% endif %}">
+          {% if item.isCorrect %}Correct{% elif item.answered %}Incorrect{% else %}Not answered{% endif %}
+        </span>
+      </div>
+
+      {% if item.question.image %}
+        <figure class="question-figure">
+          <img src="{{ item.question.image }}" alt="Diagram for question {{ item.number }}" loading="lazy">
+        </figure>
+      {% endif %}
+
+      <div class="options">
+        {% for option, optionIndex in item.options %}
+          <div class="option {% if option.correct %}is-correct-answer{% elif option.chosen %}is-wrong-answer{% endif %}">
+            <span class="option-label">{{ 'ABCDEFGHIJ'[optionIndex] }}</span>
+            <span class="option-text">{{ option.option_text }}</span>
+            {% if option.correct %}<span class="option-tag correct">Correct answer</span>{% endif %}
+            {% if option.chosen && !option.correct %}<span class="option-tag wrong">Your answer</span>{% endif %}
+            {% if option.chosen && option.correct %}<span class="option-tag chosen">Your answer</span>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      {% if item.question.explanation %}
+        <div class="explanation">
+          <strong>Explanation</strong>
+          {{ item.question.explanation }}
+        </div>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% endif %}

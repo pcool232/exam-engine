@@ -1,0 +1,59 @@
+<div class="page-head">
+  <div>
+    <h1>My account</h1>
+    <p>Your sign-in details.</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h2>Details</h2>
+    <table>
+      <tbody>
+        <tr><th>Name</th><td>{{ currentUser.full_name }}</td></tr>
+        <tr><th>Email</th><td>{{ currentUser.email }}</td></tr>
+        {% if currentUser.student_number %}
+          <tr><th>Student number</th><td>{{ currentUser.student_number }}</td></tr>
+        {% endif %}
+        {% if currentUser.role !== 'admin' %}
+          <tr>
+            <th>Exam</th>
+            <td>
+              {{ currentUser.category || 'Not set' }}
+              &nbsp;<a class="small" href="/account/category">{{ currentUser.category ? 'Change' : 'Choose' }}</a>
+            </td>
+          </tr>
+        {% endif %}
+        <tr><th>Role</th><td>{{ currentUser.role === 'admin' ? 'Administrator' : 'Student' }}</td></tr>
+        <tr><th>Joined</th><td>{{ currentUser.created_at }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Change password</h2>
+
+    {% if errors.length > 0 %}
+      <div class="notice notice-error">
+        <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+
+    <form method="post" action="/account/password">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+      <div class="field">
+        <label for="currentPassword">Current password</label>
+        <input type="password" id="currentPassword" name="currentPassword" required autocomplete="current-password">
+      </div>
+      <div class="field">
+        <label for="newPassword">New password</label>
+        <input type="password" id="newPassword" name="newPassword" required autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="confirmPassword">Confirm new password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="button">Change password</button>
+    </form>
+  </div>
+</div>

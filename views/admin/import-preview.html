@@ -1,0 +1,232 @@
+{% set backUrl = exam ? '/admin/exams/' + exam.id + '/import' : '/admin/import' %}
+{% set confirmUrl = exam ? '/admin/exams/' + exam.id + '/import/confirm' : '/admin/import/confirm' %}
+
+<p class="small"><a href="{{ backUrl }}">&larr; Start over</a></p>
+
+<div class="page-head">
+  <div>
+    {% if exam %}
+      <h1>Review before importing</h1>
+      <p>
+        Read <strong>{{ questions.length }}</strong> question{% if questions.length !== 1 %}s{% endif %}
+        from {{ pending.sourceName }} ({{ pending.formatLabel }}) into <strong>{{ exam.title }}</strong>.
+        Untick anything you do not want.
+      </p>
+    {% else %}
+      <h1>Review the exam</h1>
+      <p>
+        Read <strong>{{ questions.length }}</strong> question{% if questions.length !== 1 %}s{% endif %}
+        from {{ pending.sourceName }} ({{ pending.formatLabel }}).
+        Check the settings, untick anything you do not want, then create the paper.
+      </p>
+    {% endif %}
+  </div>
+</div>
+
+{% if issues.length > 0 %}
+  <div class="notice notice-warning">
+    <strong>{{ issues.length }} block{% if issues.length !== 1 %}s{% endif %} could not be read and will be skipped.</strong>
+    <ul>
+      {% for issue, issueIndex in issues %}
+        {% if issueIndex < 15 %}<li>{{ issue.reference }} &mdash; {{ issue.problem }}</li>{% endif %}
+      {% endfor %}
+      {% if issues.length > 15 %}<li>&hellip;and {{ issues.length - 15 }} more.</li>{% endif %}
+    </ul>
+  </div>
+{% endif %}
+
+<form method="post" action="{{ confirmUrl }}">
+  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+  <input type="hidden" name="token" value="{{ pending.token }}">
+
+  {% if settings %}
+    <div class="card">
+      <div class="card-title">
+        <h2>Exam settings</h2>
+        {% if fromFile %}
+          <span class="badge badge-live">Filled in from the file</span>
+        {% else %}
+          <span class="muted small">The file did not name the exam, so please fill these in</span>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label for="title">Exam title</label>
+        <input type="text" id="title" name="title" value="{{ settings.title }}" required
+               placeholder="e.g. Grade 12 Mathematics Paper 1">
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="examCode">Exam code</label>
+          <input type="text" id="examCode" name="examCode" value="{{ settings.exam_code }}">
+        </div>
+        <div class="field">
+          <label for="subject">Subject</label>
+          <input type="text" id="subject" name="subject" value="{{ settings.subject }}"
+                 list="subjectList" autocomplete="off">
+          <datalist id="subjectList">
+            {% for name in subjects %}<option value="{{ name }}"></option>{% endfor %}
+          </datalist>
+        </div>
+        {% if !pending.examId %}
+          <div class="field">
+            <label for="category">Exam level</label>
+            <select id="category" name="category" required>
+              <option value="">Choose one&hellip;</option>
+              {% for c in categories %}
+                <option value="{{ c }}" {% if settings.category === c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+            <p class="hint">PSLE, JC or BGCSE &mdash; students only ever see papers for their own level.</p>
+          </div>
+        {% endif %}
+        <div class="field">
+          <label for="year">Year / sitting</label>
+          <input type="text" id="year" name="year" value="{{ settings.year }}">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="description">Description <span class="muted">(shown to students before they start)</span></label>
+        <textarea id="description" name="description" rows="2">{{ settings.description }}</textarea>
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="durationMinutes">Time limit (minutes)</label>
+          <input type="number" id="durationMinutes" name="durationMinutes" min="0" max="600"
+                 value="{{ settings.duration_minutes }}">
+          <p class="hint">0 for no time limit.</p>
+        </div>
+        <div class="field">
+          <label for="passMark">Pass mark (%)</label>
+          <input type="number" id="passMark" name="passMark" min="0" max="100" value="{{ settings.pass_mark }}">
+        </div>
+        <div class="field">
+          <label for="questionsPerAttempt">Questions per attempt</label>
+          <input type="number" id="questionsPerAttempt" name="questionsPerAttempt" min="0"
+                 value="{{ settings.questions_per_attempt }}">
+          <p class="hint">0 uses every question.</p>
+        </div>
+      </div>
+
+      <div class="stack" style="gap:.5rem">
+        <label class="checkbox">
+          <input type="checkbox" name="shuffleQuestions" value="1" {% if settings.shuffle_questions %}checked{% endif %}>
+          <span>Shuffle the order of questions for each attempt</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="shuffleOptions" value="1" {% if settings.shuffle_options %}checked{% endif %}>
+          <span>Shuffle the order of the options within each question</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="showAnswers" value="1" {% if settings.show_answers %}checked{% endif %}>
+          <span>Show correct answers and explanations after submission</span>
+        </label>
+        <label class="checkbox">
+          <input type="checkbox" name="isPublished" value="1">
+          <span><strong>Publish straight away</strong> &mdash; otherwise it is saved as a draft</span>
+        </label>
+      </div>
+
+      {% if hasPictureOptions %}
+        <div class="notice notice-info" style="margin:1rem 0 0">
+          Some options in this paper read &ldquo;Shown at A&rdquo;, &ldquo;Shown at B&rdquo; and so on, which means
+          the answers are pictures inside the diagram. Leave <strong>shuffle options</strong> switched
+          off, or those letters will no longer match the picture.
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="spread">
+      <div class="row">
+        <button type="button" class="button button-secondary button-small" id="selectAll">Select all</button>
+        <button type="button" class="button button-secondary button-small" id="selectNone">Select none</button>
+        <span class="muted small"><span id="selectedCount">{{ questions.length }}</span> selected</span>
+      </div>
+      <div class="row">
+        {% if exam %}
+          <label class="checkbox">
+            <input type="checkbox" name="replaceExisting" value="1">
+            <span class="small">Replace the questions already in this exam</span>
+          </label>
+        {% endif %}
+        <button type="submit" class="button">
+          {{ exam ? 'Import selected questions' : 'Create the exam' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="preview-list">
+    {% for question, index in questions %}
+      <div class="preview-item">
+        <div class="preview-head">
+          <label class="checkbox" style="flex:none">
+            <input type="checkbox" name="keep" value="{{ index }}" checked class="keep-box">
+          </label>
+          <span class="question-number">{{ index + 1 }}</span>
+          <div style="flex:1">
+            <p style="margin:0;white-space:pre-wrap">{{ question.text }}</p>
+            <div class="muted tiny" style="margin-top:.2rem">
+              {{ question.type === 'multiple' ? 'Multiple answers' : 'Single answer' }} &middot;
+              {{ question.marks }} mark{% if question.marks !== 1 %}s{% endif %} &middot;
+              {{ question.options.length }} options
+              {% if question.image %} &middot; has a diagram{% endif %}
+            </div>
+            {% if question.image %}
+              <img class="figure-thumb" src="{{ question.image }}" alt="" loading="lazy">
+            {% endif %}
+            <ul>
+              {% for option in question.options %}
+                <li class="{% if option.isCorrect %}correct{% endif %}">
+                  {{ option.label }}. {{ option.text }}{% if option.isCorrect %} &#10003;{% endif %}
+                </li>
+              {% endfor %}
+            </ul>
+            {% if question.explanation %}
+              <p class="muted tiny" style="margin:.4rem 0 0"><em>{{ question.explanation }}</em></p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <div class="form-actions">
+      <button type="submit" class="button">
+        {{ exam ? 'Import selected questions' : 'Create the exam' }}
+      </button>
+      <a class="button button-secondary" href="{{ backUrl }}">Start over</a>
+    </div>
+  </div>
+</form>
+
+<script>
+(function () {
+  var boxes = document.querySelectorAll('.keep-box');
+  var counter = document.getElementById('selectedCount');
+
+  function refresh() {
+    var selected = 0;
+    boxes.forEach(function (box) { if (box.checked) selected++; });
+    counter.textContent = String(selected);
+  }
+
+  document.getElementById('selectAll').addEventListener('click', function () {
+    boxes.forEach(function (box) { box.checked = true; });
+    refresh();
+  });
+  document.getElementById('selectNone').addEventListener('click', function () {
+    boxes.forEach(function (box) { box.checked = false; });
+    refresh();
+  });
+  boxes.forEach(function (box) { box.addEventListener('change', refresh); });
+
+  refresh();
+})();
+</script>

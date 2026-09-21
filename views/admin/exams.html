@@ -1,0 +1,86 @@
+<div class="page-head">
+  <div>
+    <h1>Exams</h1>
+    <p>Every paper in the system, live or draft.</p>
+  </div>
+  <div class="head-actions">
+    <a class="button" href="/admin/import">Import an exam file</a>
+    <a class="button button-secondary" href="/admin/exams/new">New empty exam</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" action="/admin/exams" class="row" style="margin-bottom:1rem">
+    <input type="search" name="q" value="{{ search }}" placeholder="Search by title, code or subject" style="max-width:300px">
+    {% if subjects.length > 0 %}
+      <select name="subject" style="max-width:220px">
+        <option value="">All subjects</option>
+        {% for subject in subjects %}
+          <option value="{{ subject }}" {% if selectedSubject === subject %}selected{% endif %}>{{ subject }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+    <select name="category" style="max-width:160px">
+      <option value="">All levels</option>
+      {% for c in categories %}
+        <option value="{{ c }}" {% if selectedCategory === c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="button button-secondary button-small">Filter</button>
+    {% if search || selectedSubject || selectedCategory %}<a class="small" href="/admin/exams">Clear</a>{% endif %}
+  </form>
+
+  {% if exams.length === 0 %}
+    <div class="empty">
+      <h3>{% if search %}Nothing matched "{{ search }}"{% else %}No exams yet{% endif %}</h3>
+      <p>Upload a prepared exam file, or create an empty paper and add questions to it.</p>
+      <p>
+        <a class="button" href="/admin/import">Import an exam file</a>
+        <a class="button button-secondary" href="/admin/exams/new">New empty exam</a>
+      </p>
+    </div>
+  {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th><th>Questions</th><th>Duration</th><th>Pass</th>
+            <th>Attempts</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for exam in exams %}
+            <tr>
+              <td>
+                <a href="/admin/exams/{{ exam.id }}"><strong>{{ exam.title }}</strong></a>
+                <div class="muted tiny">
+                  {% if exam.category %}{{ exam.category }}{% else %}<a class="badge badge-fail" href="/admin/exams/{{ exam.id }}/edit">No level set — fix it</a>{% endif %}
+                  {% if exam.exam_code %} · {{ exam.exam_code }}{% endif %}
+                  {% if exam.subject %} · {{ exam.subject }}{% endif %}
+                  {% if exam.year %} · {{ exam.year }}{% endif %}
+                </div>
+              </td>
+              <td>{{ exam.question_count }}</td>
+              <td class="nowrap">{{ exam.duration_minutes > 0 ? exam.duration_minutes + ' min' : 'None' }}</td>
+              <td>{{ exam.pass_mark }}%</td>
+              <td>{{ exam.attempt_count }}</td>
+              <td>
+                {% if exam.is_published %}<span class="badge badge-live">Live</span>
+                {% else %}<span class="badge badge-draft">Draft</span>{% endif %}
+              </td>
+              <td class="actions">
+                <a class="small" href="/admin/exams/{{ exam.id }}/edit">Settings</a>
+                <form method="post" action="/admin/exams/{{ exam.id }}/publish" class="inline-form">
+                  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+                  <input type="hidden" name="back" value="list">
+                  <input type="hidden" name="publish" value="{{ exam.is_published ? '0' : '1' }}">
+                  <button type="submit" class="link-button small">{{ exam.is_published ? 'Unpublish' : 'Publish' }}</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>

@@ -1,0 +1,112 @@
+<form method="post" action="/attempts/{{ attempt.id }}/submit" id="examForm"
+      data-attempt="{{ attempt.id }}"
+      data-seconds="{{ secondsRemaining === null ? '' : secondsRemaining }}">
+  <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+  <div class="page-head">
+    <div>
+      <h1>{{ exam.title }}</h1>
+      <p class="small">Answer each question, then move on with <strong>Next</strong>. Your answers save automatically.</p>
+    </div>
+  </div>
+
+  <div class="exam-layout">
+    <div class="stage">
+      {% for question in questions %}
+        <section class="question" id="q{{ question.number }}" data-question="{{ question.id }}">
+          <div class="question-head">
+            <span class="question-number">{{ question.number }}</span>
+            <div style="flex:1">
+              <p class="question-text">{{ question.question_text }}</p>
+              {% if question.question_type === 'multiple' %}
+                <p class="question-hint">Select all answers that apply.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if question.image %}
+            <figure class="question-figure">
+              <img src="{{ question.image }}" alt="Diagram for question {{ question.number }}" loading="lazy">
+            </figure>
+          {% endif %}
+
+          <div class="options">
+            {% for option, optionIndex in question.options %}
+              <label class="option">
+                <input
+                  type="{% if question.question_type === 'multiple' %}checkbox{% else %}radio{% endif %}"
+                  name="q_{{ question.id }}"
+                  value="{{ option.id }}"
+                  {% if question.savedSelection.includes(option.id) %}checked{% endif %}>
+                <span class="option-label">{{ 'ABCDEFGHIJ'[optionIndex] }}</span>
+                <span class="option-text">{{ option.option_text }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+
+      <!-- Shown only once the script has taken over; without it every question
+           stays on the page and the form still works as one long list. -->
+      <nav class="pager" id="pager" hidden>
+        <button type="button" class="button button-secondary" id="prevQuestion">
+          <span aria-hidden="true">&larr;</span> Previous
+        </button>
+        <p class="pager-count" aria-live="polite">
+          Question <strong id="pagerCurrent">1</strong> of {{ questions.length }}
+        </p>
+        <!-- Next becomes the submit button on the last question only. -->
+        <button type="button" class="button" id="nextQuestion">
+          Next <span aria-hidden="true">&rarr;</span>
+        </button>
+        <button type="button" class="button button-finish" id="submitButton" hidden>
+          Submit and mark
+        </button>
+      </nav>
+
+      <div class="card" style="margin-top:1rem">
+        <div class="spread">
+          <p class="small muted" style="margin:0">
+            <span id="answeredCount">0</span> of {{ questions.length }} answered
+            &middot; <span id="unansweredCount">{{ questions.length }}</span> still to do
+          </p>
+          <noscript>
+            <button type="submit" class="button">Submit and mark</button>
+          </noscript>
+        </div>
+      </div>
+    </div>
+
+    <aside class="exam-sidebar">
+      {% if secondsRemaining !== null %}
+        <div class="card center" style="padding:.9rem">
+          <p class="tiny muted" style="margin:0">Time remaining</p>
+          <div class="timer" id="timer">--:--</div>
+        </div>
+      {% endif %}
+
+      <div class="card" style="padding:.9rem">
+        <p class="tiny muted" style="margin:0 0 .5rem">Questions</p>
+        <nav class="qnav" id="qnav">
+          {% for question, index in questions %}
+            <a href="#q{{ question.number }}" data-for="{{ question.id }}"
+               data-index="{{ index }}">{{ question.number }}</a>
+          {% endfor %}
+        </nav>
+        <p class="tiny muted qnav-legend">
+          <span><span class="qnav-key qnav-key-answered"></span>answered</span>
+          <span><span class="qnav-key qnav-key-unanswered"></span>unanswered</span>
+          <span><span class="qnav-key qnav-key-current"></span>current</span>
+        </p>
+      </div>
+
+      <div class="card" style="padding:.9rem">
+        <p class="tiny muted" style="margin:0">
+          Saved automatically · <span id="saveState">up to date</span>
+        </p>
+      </div>
+    </aside>
+  </div>
+</form>
+
+<script src="/static/js/attempt.js" defer></script>

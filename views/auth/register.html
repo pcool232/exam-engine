@@ -1,0 +1,62 @@
+<div class="auth-wrap">
+  <div class="auth-head">
+    <div class="brand-mark">RE</div>
+    <h1>Create your account</h1>
+    <p class="muted">You will be able to sit any exam your institution has published.</p>
+  </div>
+
+  <div class="card">
+    {% if errors.length > 0 %}
+      <div class="notice notice-error">
+        <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+
+    <form method="post" action="/register">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+      <div class="field">
+        <label for="fullName">Full name</label>
+        <input type="text" id="fullName" name="fullName" value="{{ values.fullName || '' }}"
+               required autocomplete="name" autofocus>
+      </div>
+
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" value="{{ values.email || '' }}"
+               required autocomplete="username">
+      </div>
+
+      <div class="field">
+        <label for="studentNumber">Student number <span class="muted">(optional)</span></label>
+        <input type="text" id="studentNumber" name="studentNumber" value="{{ values.studentNumber || '' }}">
+      </div>
+
+      <div class="field">
+        <label for="category">Which exam are you revising for?</label>
+        <select id="category" name="category" required>
+          <option value="">Choose one&hellip;</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if values.category === c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+        <p class="hint">PSLE, Junior Certificate (JC), or BGCSE. You'll only be shown papers for this level.</p>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="new-password">
+        <p class="hint">At least 8 characters, including a letter and a number.</p>
+      </div>
+
+      <div class="field">
+        <label for="confirmPassword">Confirm password</label>
+        <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
+      </div>
+
+      <button type="submit" class="button button-block">Create account</button>
+    </form>
+  </div>
+
+  <p class="auth-alt">Already registered? <a href="/login">Sign in</a></p>
+</div>

@@ -1,0 +1,168 @@
+{% if showBackToSubjects %}
+  <p class="small"><a href="/dashboard">&larr; All subjects</a></p>
+{% endif %}
+
+<div class="page-head">
+  <div>
+    {% if showBackToSubjects %}
+      {# Drilled into one subject out of several. #}
+      <h1>{{ chosen.name }}</h1>
+      <p>
+        {{ chosen.paperCount }} paper{% if chosen.paperCount !== 1 %}s{% endif %} to practise
+        {% if chosen.attemptedCount > 0 %}
+          &middot; you have written {{ chosen.attemptedCount }} of them
+        {% endif %}
+      </p>
+    {% else %}
+      <h1>Hello, {{ currentUser.full_name.split(' ')[0] }}</h1>
+      {% if chosen %}
+        <p>Papers in <strong>{{ chosen.name }}</strong> — pick one to practise.</p>
+      {% else %}
+        <p>Choose a subject, then pick a paper to practise.</p>
+      {% endif %}
+    {% endif %}
+  </div>
+  <div class="head-actions">
+    <a class="button button-secondary" href="/history">My results</a>
+  </div>
+</div>
+
+{% if !showBackToSubjects %}
+  <div class="grid grid-4" style="margin-bottom:1.5rem">
+    <div class="stat">
+      <div class="stat-value">{{ stats.subjects }}</div>
+      <div class="stat-label">Subject{% if stats.subjects !== 1 %}s{% endif %}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ stats.available }}</div>
+      <div class="stat-label">Papers available</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ stats.completed }}</div>
+      <div class="stat-label">Papers written</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{% if stats.averageScore === null %}—{% else %}{{ stats.averageScore }}%{% endif %}</div>
+      <div class="stat-label">Average score</div>
+    </div>
+  </div>
+{% endif %}
+
+{% if subjects.length === 0 %}
+
+  <div class="card empty">
+    <h3>No papers yet</h3>
+    <p>Your administrator has not published any papers. Check back soon.</p>
+  </div>
+
+{% elif !chosen %}
+
+  {# Many subjects: pick one first. #}
+  <h2 style="margin-bottom:.8rem">Subjects</h2>
+  <div class="grid grid-3">
+    {% for subject in subjects %}
+      <a class="subject-card" href="/dashboard?subject={{ encodeURIComponent(subject.name) }}">
+        <div class="subject-head">
+          <h3>{{ subject.name }}</h3>
+          <span class="subject-count">{{ subject.paperCount }}</span>
+        </div>
+        <p class="small muted" style="margin:0">
+          {{ subject.paperCount }} paper{% if subject.paperCount !== 1 %}s{% endif %} ·
+          {{ subject.questionCount }} question{% if subject.questionCount !== 1 %}s{% endif %}
+        </p>
+
+        {% if subject.attemptedCount > 0 %}
+          <div>
+            <div class="spread tiny muted" style="margin-bottom:.25rem">
+              <span>Average: {{ subject.bestAverage }}%</span>
+              <span>{{ subject.attemptedCount }} of {{ subject.paperCount }} written</span>
+            </div>
+            <div class="progress"><span style="width: {{ Math.max(2, Math.round(100 * subject.attemptedCount / subject.paperCount)) }}%"></span></div>
+          </div>
+        {% else %}
+          <p class="tiny muted" style="margin:0">Not started</p>
+        {% endif %}
+
+        {% if subject.openAttemptId %}
+          <span class="badge badge-draft">Paper in progress</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </div>
+
+{% else %}
+
+  {# One subject: show its papers. #}
+  <div class="grid grid-3">
+    {% for exam in chosen.papers %}
+      <article class="exam-card">
+        <div>
+          <h3>{{ exam.title }}</h3>
+          <div class="exam-meta">
+            {% if exam.exam_code %}<span>{{ exam.exam_code }}</span>{% endif %}
+            {% if exam.year %}<span>{{ exam.year }}</span>{% endif %}
+          </div>
+        </div>
+
+        <p class="small muted">{{ exam.blurb }}</p>
+
+        <div class="exam-meta">
+          <span>{% if exam.questions_per_attempt > 0 %}{{ Math.min(exam.questions_per_attempt, exam.question_count) }}{% else %}{{ exam.question_count }}{% endif %} questions</span>
+          <span>{% if exam.duration_minutes > 0 %}{{ exam.duration_minutes }} min{% else %}No time limit{% endif %}</span>
+          <span>Pass {{ exam.pass_mark }}%</span>
+        </div>
+
+        {% if exam.my_attempts > 0 %}
+          <div>
+            <div class="spread tiny muted" style="margin-bottom:.25rem">
+              <span>Best: {{ exam.best_percentage }}%</span>
+              <span>{{ exam.my_attempts }} attempt{% if exam.my_attempts !== 1 %}s{% endif %}</span>
+            </div>
+            <div class="progress {% if exam.best_percentage >= exam.pass_mark %}is-pass{% else %}is-fail{% endif %}">
+              <span style="width: {{ Math.max(2, exam.best_percentage) }}%"></span>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if exam.open_attempt_id %}
+          <a class="button" href="/attempts/{{ exam.open_attempt_id }}">Resume attempt</a>
+        {% else %}
+          <a class="button" href="/exams/{{ exam.id }}">
+            {% if exam.my_attempts > 0 %}Try again{% else %}Start exam{% endif %}
+          </a>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+
+{% endif %}
+
+{% if recent.length > 0 && !showBackToSubjects %}
+  <div class="card" style="margin-top:1.5rem">
+    <div class="card-title">
+      <h2>Recent results</h2>
+      <a class="small" href="/history">See all</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Exam</th><th>Score</th><th>Result</th><th>Written</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for attempt in recent %}
+            <tr>
+              <td>{{ attempt.exam_title }}</td>
+              <td class="nowrap">{{ attempt.score }} / {{ attempt.total_marks }} ({{ attempt.percentage }}%)</td>
+              <td>
+                {% if attempt.passed %}<span class="badge badge-pass">Pass</span>
+                {% else %}<span class="badge badge-fail">Fail</span>{% endif %}
+              </td>
+              <td class="muted small nowrap">{{ attempt.submitted_at }}</td>
+              <td class="actions"><a class="small" href="/results/{{ attempt.id }}">Review</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · {{ appName }}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+</head>
+<body data-variant="{{ layoutVariant }}">
+
+{% if layoutVariant !== 'bare' %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark">RE</span>
+      <span class="brand-name">{{ appName }}</span>
+    </a>
+
+    {% if currentUser %}
+      <nav class="topnav">
+        {% if currentUser.role === 'admin' %}
+          <a href="/admin">Overview</a>
+          <a href="/admin/exams">Exams</a>
+          <a href="/admin/students">Students</a>
+          <a href="/admin/results">Results</a>
+        {% else %}
+          <a href="/dashboard">Exams</a>
+          <a href="/history">My results</a>
+        {% endif %}
+      </nav>
+
+      <div class="topbar-user">
+        <details class="user-menu">
+          <summary>
+            <span class="avatar">{{ currentUser.full_name.trim().charAt(0).toUpperCase() }}</span>
+            <span class="user-name">{{ currentUser.full_name }}</span>
+          </summary>
+          <div class="user-menu-panel">
+            <p class="user-menu-email">{{ currentUser.email }}</p>
+            {% if currentUser.role === 'admin' %}<p class="badge badge-admin">Administrator</p>{% endif %}
+            <a href="/account">My account</a>
+            <form method="post" action="/logout">
+              <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+              <button type="submit" class="link-button">Sign out</button>
+            </form>
+          </div>
+        </details>
+      </div>
+    {% else %}
+      <nav class="topnav">
+        <a href="/login">Sign in</a>
+        <a class="button button-small" href="/register">Create account</a>
+      </nav>
+    {% endif %}
+  </div>
+</header>
+{% endif %}
+
+<main class="page {% if layoutVariant === 'exam' %}page-wide{% endif %}">
+  {% if flash %}
+    <div class="flash flash-{{ flash.type }}" role="status">{{ flash.message }}</div>
+  {% endif %}
+  {{{ body }}}
+</main>
+
+<footer class="footer">
+  <p>{{ appName }} · practise past examination papers</p>
+</footer>
+
+</body>
+</html>

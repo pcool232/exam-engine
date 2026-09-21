@@ -1,0 +1,78 @@
+<p class="small"><a href="/dashboard">← Back to exams</a></p>
+
+<div class="page-head">
+  <div>
+    <h1>{{ exam.title }}</h1>
+    <div class="exam-meta">
+      {% if exam.exam_code %}<span>{{ exam.exam_code }}</span>{% endif %}
+      {% if exam.subject %}<span>{{ exam.subject }}</span>{% endif %}
+      {% if exam.year %}<span>{{ exam.year }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <p>{{ blurb }}</p>
+
+    <h2>Before you begin</h2>
+    <ul class="small">
+      <li>This paper has <strong>{{ servedCount }} question{% if servedCount !== 1 %}s{% endif %}</strong>{% if servedCount !== questionCount %} drawn at random from a bank of {{ questionCount }}{% endif %}.</li>
+      {% if exam.duration_minutes > 0 %}
+        <li>You have <strong>{{ exam.duration_minutes }} minutes</strong>. When the time runs out the paper is submitted automatically.</li>
+      {% else %}
+        <li>There is <strong>no time limit</strong> on this paper.</li>
+      {% endif %}
+      <li>The pass mark is <strong>{{ exam.pass_mark }}%</strong>.</li>
+      <li>Questions are shown <strong>one at a time</strong>. Use <strong>Next</strong> and
+          <strong>Previous</strong> to move, or the numbered grid to jump to any question.</li>
+      <li>Your answers save as you go, so you can safely refresh the page.</li>
+      {% if exam.show_answers %}
+        <li>You will see the correct answers and explanations after you submit.</li>
+      {% endif %}
+    </ul>
+
+    {% if openAttempt %}
+      <div class="notice notice-warning">You already have an attempt in progress.</div>
+      <div class="row">
+        <a class="button" href="/attempts/{{ openAttempt.id }}">Resume attempt</a>
+        <form method="post" action="/attempts/{{ openAttempt.id }}/abandon" class="inline-form"
+              onsubmit="return confirm('Discard the attempt in progress? Your saved answers will be lost.')">
+          <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+          <button type="submit" class="button button-secondary">Discard and start over</button>
+        </form>
+      </div>
+    {% else %}
+      <form method="post" action="/exams/{{ exam.id }}/start">
+        <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+        <button type="submit" class="button">Start the exam</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Your attempts</h2>
+    {% if history.length === 0 %}
+      <p class="muted small">You have not written this paper yet.</p>
+    {% else %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Score</th><th>Result</th><th>Written</th><th></th></tr></thead>
+          <tbody>
+            {% for attempt in history %}
+              <tr>
+                <td class="nowrap">{{ attempt.percentage }}%</td>
+                <td>
+                  {% if attempt.passed %}<span class="badge badge-pass">Pass</span>
+                  {% else %}<span class="badge badge-fail">Fail</span>{% endif %}
+                </td>
+                <td class="muted small nowrap">{{ attempt.submitted_at }}</td>
+                <td class="actions"><a class="small" href="/results/{{ attempt.id }}">Review</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+</div>

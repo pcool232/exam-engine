@@ -1,0 +1,52 @@
+<div class="page-head">
+  <div>
+    <h1>My results</h1>
+    <p>Every paper you have submitted.</p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-secondary" href="/dashboard">Back to exams</a>
+  </div>
+</div>
+
+<div class="card">
+  {% if attempts.length === 0 %}
+    <div class="empty">
+      <h3>Nothing here yet</h3>
+      <p>Once you submit a paper your result will appear here.</p>
+      <p><a class="button" href="/dashboard">Find an exam</a></p>
+    </div>
+  {% else %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Exam</th><th>Score</th><th>Percentage</th><th>Result</th><th>Written</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for attempt in attempts %}
+            <tr>
+              <td>
+                {{ attempt.exam_title }}
+                {% if attempt.exam_code %}<span class="muted tiny"> · {{ attempt.exam_code }}</span>{% endif %}
+              </td>
+              <td class="nowrap">{{ attempt.score }} / {{ attempt.total_marks }}</td>
+              <td class="nowrap">
+                <div class="progress {% if attempt.passed %}is-pass{% else %}is-fail{% endif %}" style="width:70px;display:inline-block;vertical-align:middle">
+                  <span style="width: {{ Math.max(2, attempt.percentage) }}%"></span>
+                </div>
+                <span class="small">{{ attempt.percentage }}%</span>
+              </td>
+              <td>
+                {% if attempt.passed %}<span class="badge badge-pass">Pass</span>
+                {% else %}<span class="badge badge-fail">Fail</span>{% endif %}
+              </td>
+              <td class="muted small nowrap">{{ attempt.submitted_at }}</td>
+              <td class="actions"><a class="small" href="/results/{{ attempt.id }}">Review</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>

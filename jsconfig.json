@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "checkJs": false,
+    "baseUrl": ".",
+    "lib": ["ES2022"]
+  },
+  "include": ["server.js", "src/**/*.js", "public/**/*.js"],
+  "exclude": ["node_modules", "data"]
+}

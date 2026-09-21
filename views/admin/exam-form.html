@@ -1,0 +1,111 @@
+<p class="small"><a href="/admin/exams">← Back to exams</a></p>
+
+<div class="page-head">
+  <div>
+    <h1>{{ isNew ? 'New exam' : 'Exam settings' }}</h1>
+    <p>{{ isNew ? 'Create the paper first, then load its questions.' : 'Change how this paper behaves for students.' }}</p>
+  </div>
+</div>
+
+<div class="card" style="max-width:760px">
+  {% if errors.length > 0 %}
+    <div class="notice notice-error">
+      <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <form method="post" action="{{ isNew ? '/admin/exams/new' : '/admin/exams/' + exam.id + '/edit' }}">
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+    <div class="field">
+      <label for="title">Exam title</label>
+      <input type="text" id="title" name="title" value="{{ exam.title || '' }}" required autofocus
+             placeholder="e.g. Grade 12 Mathematics Paper 1">
+    </div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="examCode">Exam code <span class="muted">(optional)</span></label>
+        <input type="text" id="examCode" name="examCode" value="{{ exam.exam_code || '' }}" placeholder="e.g. MAT3701">
+      </div>
+      <div class="field">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" name="subject" value="{{ exam.subject || '' }}"
+               list="subjectList" autocomplete="off" placeholder="e.g. Mathematics">
+        <datalist id="subjectList">
+          {% for name in subjects %}<option value="{{ name }}"></option>{% endfor %}
+        </datalist>
+        <p class="hint">Students browse by subject, so reuse an existing name where one fits.</p>
+      </div>
+      <div class="field">
+        <label for="category">Exam level</label>
+        <select id="category" name="category" required>
+          <option value="">Choose one&hellip;</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if exam.category === c %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+        <p class="hint">PSLE, JC or BGCSE &mdash; students only ever see papers for their own level.</p>
+      </div>
+      <div class="field">
+        <label for="year">Year / sitting <span class="muted">(optional)</span></label>
+        <input type="text" id="year" name="year" value="{{ exam.year || '' }}" placeholder="e.g. November 2023">
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="description">Description <span class="muted">(optional)</span></label>
+      <textarea id="description" name="description" rows="3"
+                placeholder="Shown to students before they start.">{{ exam.description || '' }}</textarea>
+      <p class="hint">
+        Leave this blank and students see one written from the paper's own details &mdash;
+        subject, sitting, how many questions, the time limit and the pass mark.
+      </p>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:1.2rem 0">
+
+    <div class="form-grid">
+      <div class="field">
+        <label for="durationMinutes">Time limit (minutes)</label>
+        <input type="number" id="durationMinutes" name="durationMinutes" min="0" max="600"
+               value="{{ exam.duration_minutes }}">
+        <p class="hint">Use 0 for no time limit.</p>
+      </div>
+      <div class="field">
+        <label for="passMark">Pass mark (%)</label>
+        <input type="number" id="passMark" name="passMark" min="0" max="100" value="{{ exam.pass_mark }}">
+      </div>
+      <div class="field">
+        <label for="questionsPerAttempt">Questions per attempt</label>
+        <input type="number" id="questionsPerAttempt" name="questionsPerAttempt" min="0"
+               value="{{ exam.questions_per_attempt }}">
+        <p class="hint">0 uses every question. A smaller number draws a random subset from the bank.</p>
+      </div>
+    </div>
+
+    <div class="stack" style="gap:.5rem;margin-top:.5rem">
+      <label class="checkbox">
+        <input type="checkbox" name="shuffleQuestions" value="1" {% if exam.shuffle_questions %}checked{% endif %}>
+        <span>Shuffle the order of questions for each attempt</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="shuffleOptions" value="1" {% if exam.shuffle_options %}checked{% endif %}>
+        <span>Shuffle the order of the options within each question</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="showAnswers" value="1" {% if exam.show_answers %}checked{% endif %}>
+        <span>Show correct answers and explanations after submission</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" name="isPublished" value="1" {% if exam.is_published %}checked{% endif %}>
+        <span><strong>Publish</strong> — make this paper visible to students</span>
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="button">{{ isNew ? 'Create exam' : 'Save changes' }}</button>
+      <a class="button button-secondary" href="{{ isNew ? '/admin/exams' : '/admin/exams/' + exam.id }}">Cancel</a>
+    </div>
+  </form>
+</div>
