@@ -2,7 +2,7 @@
 
 <div class="page-head">
   <div>
-    <h1>{{ exam.title }}</h1>
+    <h1><span class="title-icon">{{ subjectIcon(exam.subject) }}</span> {{ exam.title }}</h1>
     <div class="exam-meta">
       {% if exam.exam_code %}<span>{{ exam.exam_code }}</span>{% endif %}
       {% if exam.subject %}<span>{{ exam.subject }}</span>{% endif %}

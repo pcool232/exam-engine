@@ -1,0 +1,35 @@
+{% if googleClientId %}
+  <div class="auth-divider"><span>or</span></div>
+
+  <div id="google-signin-button" class="google-signin-button"></div>
+
+  <form id="google-signin-form" method="post" action="/auth/google" style="display:none">
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+    <input type="hidden" name="next" value="{{ nextUrl }}">
+    <input type="hidden" name="credential" id="google-signin-credential">
+  </form>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    function handleGoogleCredential(response) {
+      document.getElementById('google-signin-credential').value = response.credential;
+      document.getElementById('google-signin-form').submit();
+    }
+    (function initGoogleButton(attemptsLeft) {
+      if (!window.google || !window.google.accounts) {
+        // The Google script hasn't loaded yet (or is blocked, e.g. offline /
+        // an ad blocker) -- try a few more times, then quietly give up. The
+        // rest of the page (email/password) works fine either way.
+        if (attemptsLeft > 0) setTimeout(function () { initGoogleButton(attemptsLeft - 1); }, 200);
+        return;
+      }
+      google.accounts.id.initialize({
+        client_id: {{{ JSON.stringify(googleClientId) }}},
+        callback: handleGoogleCredential,
+      });
+      google.accounts.id.renderButton(document.getElementById('google-signin-button'), {
+        theme: 'outline', size: 'large', width: 320, text: 'continue_with',
+      });
+    })(25);
+  </script>
+{% endif %}

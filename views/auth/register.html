@@ -33,14 +33,18 @@
       </div>
 
       <div class="field">
-        <label for="category">Which exam are you revising for?</label>
-        <select id="category" name="category" required>
-          <option value="">Choose one&hellip;</option>
+        <label>Which exam are you revising for?</label>
+        <div class="category-picker">
           {% for c in categories %}
-            <option value="{{ c }}" {% if values.category === c %}selected{% endif %}>{{ c }}</option>
+            <label class="category-tile {% if values.category === c %}is-selected{% endif %}">
+              <input type="radio" name="category" value="{{ c }}" {% if values.category === c %}checked{% endif %} required>
+              <span class="category-tile-icon">{{ categoryIcon(c) }}</span>
+              <span class="category-tile-code">{{ c }}</span>
+              <span class="category-tile-label">{{ categoryLabel(c) }}</span>
+            </label>
           {% endfor %}
-        </select>
-        <p class="hint">PSLE, Junior Certificate (JC), or BGCSE. You'll only be shown papers for this level.</p>
+        </div>
+        <p class="hint">You'll only be shown papers for this level.</p>
       </div>
 
       <div class="field">
@@ -56,6 +60,8 @@
 
       <button type="submit" class="button button-block">Create account</button>
     </form>
+
+    {% include "partials/google-signin.html" %}
   </div>
 
   <p class="auth-alt">Already registered? <a href="/login">Sign in</a></p>

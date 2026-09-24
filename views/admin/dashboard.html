@@ -65,7 +65,7 @@
             {% for exam in exams %}
               <tr>
                 <td>
-                  <a href="/admin/exams/{{ exam.id }}">{{ exam.title }}</a>
+                  <a href="/admin/exams/{{ exam.id }}">{{ subjectIcon(exam.subject) }} {{ exam.title }}</a>
                   {% if exam.exam_code %}<span class="muted tiny"> · {{ exam.exam_code }}</span>{% endif %}
                 </td>
                 <td>{{ exam.question_count }}</td>

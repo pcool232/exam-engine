@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   role           TEXT    NOT NULL DEFAULT 'student' CHECK (role IN ('student','admin')),
   student_number TEXT,
   category       TEXT    CHECK (category IN ('PSLE','JC','BGCSE')),
+  google_sub     TEXT,
   is_active      INTEGER NOT NULL DEFAULT 1,
   created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -116,6 +117,8 @@ const COLUMN_MIGRATIONS = [
   // students until an administrator sets one).
   { table: 'users', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE'))" },
   { table: 'exams', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE'))" },
+  // "Sign in with Google" -- the account's stable Google user id, once linked.
+  { table: 'users', column: 'google_sub', definition: 'TEXT' },
 ];
 
 function applyMigrations(database) {

@@ -19,7 +19,11 @@
           <tr>
             <th>Exam</th>
             <td>
-              {{ currentUser.category || 'Not set' }}
+              {% if currentUser.category %}
+                <span class="title-icon">{{ categoryIcon(currentUser.category) }}</span> {{ currentUser.category }} &middot; {{ categoryLabel(currentUser.category) }}
+              {% else %}
+                Not set
+              {% endif %}
               &nbsp;<a class="small" href="/account/category">{{ currentUser.category ? 'Change' : 'Choose' }}</a>
             </td>
           </tr>

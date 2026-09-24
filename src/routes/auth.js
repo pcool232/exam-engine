@@ -3,6 +3,7 @@
 const users = require('../models/users');
 const config = require('../config');
 const { checkPasswordStrength } = require('../lib/password');
+const { verifyGoogleIdToken } = require('../lib/google-auth');
 const { setFlash } = require('../middleware/auth');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -46,6 +47,52 @@ function register(app) {
     }
 
     // New session id on privilege change guards against session fixation.
+    req.regenerateSession({ userId: user.id });
+    return res.redirect(nextUrl || landingFor(user));
+  });
+
+  /* -------------------------------------------------------- google sso -- */
+  // Posted by the hidden form in views/partials/google-signin.html once
+  // Google's own button has produced a signed credential. Works whether the
+  // visitor was on the login page or the register page -- either way, an
+  // unrecognised Google account is simply created on the spot (there is
+  // nothing else to ask it for; the exam-level gate in requireStudent picks
+  // up from there).
+
+  app.post('/auth/google', async (req, res) => {
+    if (!config.googleClientId) {
+      const err = new Error('Google sign-in is not set up on this site.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const nextUrl = safeNext(req.body.next);
+    const fail = (message) => {
+      setFlash(req, 'error', message);
+      return res.redirect(nextUrl ? `/login?next=${encodeURIComponent(nextUrl)}` : '/login');
+    };
+
+    const profile = await verifyGoogleIdToken(req.body.credential, config.googleClientId);
+    if (!profile) {
+      return fail('Google sign-in did not go through. Please try again.');
+    }
+
+    let user = users.findByGoogleSub(profile.sub);
+    if (!user) {
+      const existing = users.findByEmail(profile.email);
+      if (existing) {
+        user = users.linkGoogleSub(existing.id, profile.sub);
+      } else if (!config.allowRegistration) {
+        return fail('Self-registration is switched off. Ask your administrator for an account.');
+      } else {
+        user = users.createFromGoogle({ fullName: profile.name, email: profile.email, googleSub: profile.sub });
+      }
+    }
+
+    if (!user.is_active) {
+      return fail('This account has been disabled. Contact your administrator.');
+    }
+
     req.regenerateSession({ userId: user.id });
     return res.redirect(nextUrl || landingFor(user));
   });

@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const { getDb } = require('../db');
 const { hashPassword, verifyPassword } = require('../lib/password');
 
@@ -21,6 +22,11 @@ function findById(id) {
   return getDb().prepare('SELECT * FROM users WHERE id = ?').get(Number(id)) || null;
 }
 
+function findByGoogleSub(sub) {
+  if (!sub) return null;
+  return getDb().prepare('SELECT * FROM users WHERE google_sub = ?').get(String(sub)) || null;
+}
+
 function create({ fullName, email, password, role = 'student', studentNumber = null, category = null }) {
   const db = getDb();
   const result = db
@@ -35,6 +41,34 @@ function create({ fullName, email, password, role = 'student', studentNumber = n
       cleanCategory(category)
     );
   return findById(result.lastInsertRowid);
+}
+
+/**
+ * Creates a student account from a verified Google sign-in. There is no
+ * password to set, so a random, unguessable one is stored in its place --
+ * the account simply can't be signed into with a password until the
+ * student sets one (not offered yet; Google sign-in is the only way in for
+ * these accounts today).
+ */
+function createFromGoogle({ fullName, email, googleSub }) {
+  const db = getDb();
+  const unusablePassword = crypto.randomBytes(32).toString('hex');
+  const result = db
+    .prepare(`INSERT INTO users (full_name, email, password_hash, role, google_sub)
+              VALUES (?, ?, ?, 'student', ?)`)
+    .run(
+      String(fullName || email).trim(),
+      String(email).trim().toLowerCase(),
+      hashPassword(unusablePassword),
+      String(googleSub)
+    );
+  return findById(result.lastInsertRowid);
+}
+
+/** Links a Google account to an existing (email/password) user record. */
+function linkGoogleSub(userId, googleSub) {
+  getDb().prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(String(googleSub), Number(userId));
+  return findById(userId);
 }
 
 /** Sets or changes a student's exam level. */
@@ -102,7 +136,8 @@ function countAll() {
 }
 
 module.exports = {
-  findByEmail, findById, create, authenticate, updatePassword,
+  findByEmail, findById, findByGoogleSub, create, createFromGoogle, linkGoogleSub,
+  authenticate, updatePassword,
   setRole, setActive, remove, listStudents, listAdmins, countAll,
   setCategory, cleanCategory, CATEGORIES,
 };

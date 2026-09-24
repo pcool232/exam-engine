@@ -18,6 +18,7 @@ const authRoutes = require('./src/routes/auth');
 const studentRoutes = require('./src/routes/student');
 const adminRoutes = require('./src/routes/admin');
 const users = require('./src/models/users');
+const { categoryIcon, categoryLabel, subjectIcon } = require('./src/lib/icons');
 
 const db = getDb();
 
@@ -29,6 +30,11 @@ app.locals = {
   flash: null,
   title: config.appName,
   layoutVariant: 'default',
+  categoryIcon,
+  categoryLabel,
+  subjectIcon,
+  googleClientId: config.googleClientId,
+  nextUrl: '', // overridden by /login when it has a "next" target to preserve
 };
 
 app.setTemplates(new TemplateEngine(config.viewsDir, {

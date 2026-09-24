@@ -52,9 +52,9 @@
           {% for exam in exams %}
             <tr>
               <td>
-                <a href="/admin/exams/{{ exam.id }}"><strong>{{ exam.title }}</strong></a>
+                <a href="/admin/exams/{{ exam.id }}"><strong>{{ subjectIcon(exam.subject) }} {{ exam.title }}</strong></a>
                 <div class="muted tiny">
-                  {% if exam.category %}{{ exam.category }}{% else %}<a class="badge badge-fail" href="/admin/exams/{{ exam.id }}/edit">No level set — fix it</a>{% endif %}
+                  {% if exam.category %}{{ categoryIcon(exam.category) }} {{ exam.category }}{% else %}<a class="badge badge-fail" href="/admin/exams/{{ exam.id }}/edit">No level set — fix it</a>{% endif %}
                   {% if exam.exam_code %} · {{ exam.exam_code }}{% endif %}
                   {% if exam.subject %} · {{ exam.subject }}{% endif %}
                   {% if exam.year %} · {{ exam.year }}{% endif %}

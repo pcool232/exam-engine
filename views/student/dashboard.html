@@ -6,7 +6,7 @@
   <div>
     {% if showBackToSubjects %}
       {# Drilled into one subject out of several. #}
-      <h1>{{ chosen.name }}</h1>
+      <h1><span class="title-icon">{{ subjectIcon(chosen.name) }}</span> {{ chosen.label }}</h1>
       <p>
         {{ chosen.paperCount }} paper{% if chosen.paperCount !== 1 %}s{% endif %} to practise
         {% if chosen.attemptedCount > 0 %}
@@ -16,7 +16,7 @@
     {% else %}
       <h1>Hello, {{ currentUser.full_name.split(' ')[0] }}</h1>
       {% if chosen %}
-        <p>Papers in <strong>{{ chosen.name }}</strong> — pick one to practise.</p>
+        <p><strong>{{ chosen.label }}</strong> — pick one to practise.</p>
       {% else %}
         <p>Choose a subject, then pick a paper to practise.</p>
       {% endif %}
@@ -63,7 +63,8 @@
     {% for subject in subjects %}
       <a class="subject-card" href="/dashboard?subject={{ encodeURIComponent(subject.name) }}">
         <div class="subject-head">
-          <h3>{{ subject.name }}</h3>
+          <div class="subject-icon"><span>{{ subjectIcon(subject.name) }}</span></div>
+          <h3>{{ subject.label }}</h3>
           <span class="subject-count">{{ subject.paperCount }}</span>
         </div>
         <p class="small muted" style="margin:0">
@@ -97,7 +98,7 @@
     {% for exam in chosen.papers %}
       <article class="exam-card">
         <div>
-          <h3>{{ exam.title }}</h3>
+          <h3><span class="title-icon">{{ subjectIcon(exam.subject) }}</span> {{ exam.title }}</h3>
           <div class="exam-meta">
             {% if exam.exam_code %}<span>{{ exam.exam_code }}</span>{% endif %}
             {% if exam.year %}<span>{{ exam.year }}</span>{% endif %}

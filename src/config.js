@@ -44,6 +44,9 @@ const config = {
   seedAdminPassword: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
   seedAdminName: process.env.ADMIN_NAME || 'System Administrator',
   allowRegistration: String(process.env.ALLOW_REGISTRATION || 'true').toLowerCase() !== 'false',
+  // "Sign in with Google" is switched on by setting this. Leave blank and the
+  // button simply does not appear -- email/password keeps working either way.
+  googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
 };
 
 config.isProduction = config.env === 'production';

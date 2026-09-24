@@ -22,14 +22,17 @@
       <input type="hidden" name="_csrf" value="{{ csrfToken }}">
 
       <div class="field">
-        <label for="category">Exam level</label>
-        <select id="category" name="category" required autofocus>
-          <option value="">Choose one&hellip;</option>
+        <label>Exam level</label>
+        <div class="category-picker">
           {% for c in categories %}
-            <option value="{{ c }}" {% if currentUser.category === c %}selected{% endif %}>{{ c }}</option>
+            <label class="category-tile {% if currentUser.category === c %}is-selected{% endif %}">
+              <input type="radio" name="category" value="{{ c }}" {% if currentUser.category === c %}checked{% endif %} required>
+              <span class="category-tile-icon">{{ categoryIcon(c) }}</span>
+              <span class="category-tile-code">{{ c }}</span>
+              <span class="category-tile-label">{{ categoryLabel(c) }}</span>
+            </label>
           {% endfor %}
-        </select>
-        <p class="hint">PSLE &middot; Junior Certificate (JC) &middot; BGCSE</p>
+        </div>
       </div>
 
       <button type="submit" class="button button-block">{{ isFirstTime ? 'Continue' : 'Save' }}</button>
