@@ -44,6 +44,7 @@ if (!fs.existsSync(resolved)) {
 
 const { parseQuestions } = require('../src/lib/parsers');
 const exams = require('../src/models/exams');
+const { closeDb } = require('../src/db');
 
 const buffer = fs.readFileSync(resolved);
 
@@ -96,9 +97,9 @@ const examData = {
   isPublished,
 };
 
-function findMatch() {
+async function findMatch() {
   if (forcedExamId) {
-    const byId = exams.findExam(forcedExamId);
+    const byId = await exams.findExam(forcedExamId);
     if (!byId) {
       console.error(`No exam with id ${forcedExamId} exists.`);
       process.exit(1);
@@ -106,7 +107,7 @@ function findMatch() {
     return byId;
   }
 
-  const all = exams.listExams({});
+  const all = await exams.listExams({});
   const code = String(settings.examCode || '').trim().toLowerCase();
   if (code) {
     const byCode = all.find(
@@ -121,24 +122,31 @@ function findMatch() {
   return null;
 }
 
-const existing = findMatch();
+(async () => {
+  const existing = await findMatch();
 
-if (existing) {
-  exams.updateExam(existing.id, examData);
-  exams.deleteAllQuestions(existing.id);
-  const saved = exams.addQuestionsBulk(existing.id, parsed.questions);
-  console.log(`Replaced questions on "${existing.title}" (exam #${existing.id}): now ${saved} question${saved === 1 ? '' : 's'}.`);
-  console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
-} else {
-  const exam = exams.createExam(examData, null);
-  const saved = exams.addQuestionsBulk(exam.id, parsed.questions);
-  console.log(`No existing exam matched, so a new one was created: "${exam.title}" (exam #${exam.id}) with ${saved} question${saved === 1 ? '' : 's'}.`);
-  console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
-}
-
-if (parsed.issues.length) {
-  console.log(`\n${parsed.issues.length} question${parsed.issues.length === 1 ? '' : 's'} had issues and were skipped:`);
-  for (const issue of parsed.issues.slice(0, 10)) {
-    console.log(`  - ${issue.reference}: ${issue.problem}`);
+  if (existing) {
+    await exams.updateExam(existing.id, examData);
+    await exams.deleteAllQuestions(existing.id);
+    const saved = await exams.addQuestionsBulk(existing.id, parsed.questions);
+    console.log(`Replaced questions on "${existing.title}" (exam #${existing.id}): now ${saved} question${saved === 1 ? '' : 's'}.`);
+    console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
+  } else {
+    const exam = await exams.createExam(examData, null);
+    const saved = await exams.addQuestionsBulk(exam.id, parsed.questions);
+    console.log(`No existing exam matched, so a new one was created: "${exam.title}" (exam #${exam.id}) with ${saved} question${saved === 1 ? '' : 's'}.`);
+    console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
   }
-}
+
+  if (parsed.issues.length) {
+    console.log(`\n${parsed.issues.length} question${parsed.issues.length === 1 ? '' : 's'} had issues and were skipped:`);
+    for (const issue of parsed.issues.slice(0, 10)) {
+      console.log(`  - ${issue.reference}: ${issue.problem}`);
+    }
+  }
+
+  await closeDb();
+})().catch((err) => {
+  console.error('[replace-exam-questions] failed:', err);
+  process.exitCode = 1;
+});

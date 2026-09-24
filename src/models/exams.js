@@ -1,9 +1,12 @@
 'use strict';
 
-const { getDb, transaction } = require('../db');
+const { get, all, run, transaction } = require('../db');
 const { CATEGORIES, cleanCategory } = require('./users');
 
 const LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** Postgres equivalent of SQLite's `datetime('now')`, same string shape. */
+const NOW_SQL = "TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')";
 
 function toInt(value, fallback = 0) {
   const n = Number.parseInt(value, 10);
@@ -16,84 +19,85 @@ function boolInt(value) {
 
 /* ----------------------------------------------------------- exams ----- */
 
-function createExam(data, createdBy) {
-  const db = getDb();
-  const result = db.prepare(`
-    INSERT INTO exams (title, exam_code, subject, category, description, year, duration_minutes, pass_mark,
-                       questions_per_attempt, shuffle_questions, shuffle_options, show_answers,
-                       is_published, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    String(data.title || '').trim(),
-    data.examCode ? String(data.examCode).trim() : null,
-    cleanSubject(data.subject) || null,
-    cleanCategory(data.category),
-    data.description ? String(data.description).trim() : null,
-    data.year ? String(data.year).trim() : null,
-    Math.max(0, toInt(data.durationMinutes, 60)),
-    Math.min(100, Math.max(0, toInt(data.passMark, 50))),
-    Math.max(0, toInt(data.questionsPerAttempt, 0)),
-    boolInt(data.shuffleQuestions),
-    boolInt(data.shuffleOptions),
-    boolInt(data.showAnswers),
-    boolInt(data.isPublished),
-    createdBy || null
+async function createExam(data, createdBy) {
+  const result = await run(
+    `INSERT INTO exams (title, exam_code, subject, category, description, year, duration_minutes, pass_mark,
+                        questions_per_attempt, shuffle_questions, shuffle_options, show_answers,
+                        is_published, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING id`,
+    [
+      String(data.title || '').trim(),
+      data.examCode ? String(data.examCode).trim() : null,
+      cleanSubject(data.subject) || null,
+      cleanCategory(data.category),
+      data.description ? String(data.description).trim() : null,
+      data.year ? String(data.year).trim() : null,
+      Math.max(0, toInt(data.durationMinutes, 60)),
+      Math.min(100, Math.max(0, toInt(data.passMark, 50))),
+      Math.max(0, toInt(data.questionsPerAttempt, 0)),
+      boolInt(data.shuffleQuestions),
+      boolInt(data.shuffleOptions),
+      boolInt(data.showAnswers),
+      boolInt(data.isPublished),
+      createdBy || null,
+    ]
   );
   return findExam(result.lastInsertRowid);
 }
 
-function updateExam(id, data) {
-  getDb().prepare(`
-    UPDATE exams SET title = ?, exam_code = ?, subject = ?, category = ?, description = ?, year = ?,
-                     duration_minutes = ?, pass_mark = ?, questions_per_attempt = ?,
-                     shuffle_questions = ?, shuffle_options = ?, show_answers = ?,
-                     is_published = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `).run(
-    String(data.title || '').trim(),
-    data.examCode ? String(data.examCode).trim() : null,
-    cleanSubject(data.subject) || null,
-    cleanCategory(data.category),
-    data.description ? String(data.description).trim() : null,
-    data.year ? String(data.year).trim() : null,
-    Math.max(0, toInt(data.durationMinutes, 60)),
-    Math.min(100, Math.max(0, toInt(data.passMark, 50))),
-    Math.max(0, toInt(data.questionsPerAttempt, 0)),
-    boolInt(data.shuffleQuestions),
-    boolInt(data.shuffleOptions),
-    boolInt(data.showAnswers),
-    boolInt(data.isPublished),
-    Number(id)
+async function updateExam(id, data) {
+  await run(
+    `UPDATE exams SET title = ?, exam_code = ?, subject = ?, category = ?, description = ?, year = ?,
+                      duration_minutes = ?, pass_mark = ?, questions_per_attempt = ?,
+                      shuffle_questions = ?, shuffle_options = ?, show_answers = ?,
+                      is_published = ?, updated_at = ${NOW_SQL}
+     WHERE id = ?`,
+    [
+      String(data.title || '').trim(),
+      data.examCode ? String(data.examCode).trim() : null,
+      cleanSubject(data.subject) || null,
+      cleanCategory(data.category),
+      data.description ? String(data.description).trim() : null,
+      data.year ? String(data.year).trim() : null,
+      Math.max(0, toInt(data.durationMinutes, 60)),
+      Math.min(100, Math.max(0, toInt(data.passMark, 50))),
+      Math.max(0, toInt(data.questionsPerAttempt, 0)),
+      boolInt(data.shuffleQuestions),
+      boolInt(data.shuffleOptions),
+      boolInt(data.showAnswers),
+      boolInt(data.isPublished),
+      Number(id),
+    ]
   );
   return findExam(id);
 }
 
-function findExam(id) {
-  return getDb().prepare('SELECT * FROM exams WHERE id = ?').get(Number(id)) || null;
+async function findExam(id) {
+  return (await get('SELECT * FROM exams WHERE id = ?', [Number(id)])) || null;
 }
 
-function deleteExam(id) {
-  getDb().prepare('DELETE FROM exams WHERE id = ?').run(Number(id));
+async function deleteExam(id) {
+  await run('DELETE FROM exams WHERE id = ?', [Number(id)]);
 }
 
-function setPublished(id, published) {
-  getDb()
-    .prepare("UPDATE exams SET is_published = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(published ? 1 : 0, Number(id));
+async function setPublished(id, published) {
+  await run(`UPDATE exams SET is_published = ?, updated_at = ${NOW_SQL} WHERE id = ?`, [published ? 1 : 0, Number(id)]);
 }
 
-function listExams({ publishedOnly = false, search = '' } = {}) {
+async function listExams({ publishedOnly = false, search = '' } = {}) {
   const like = `%${search.trim()}%`;
-  return getDb().prepare(`
-    SELECT e.*,
-           (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) AS question_count,
-           (SELECT COUNT(*) FROM attempts a WHERE a.exam_id = e.id AND a.status = 'submitted') AS attempt_count
-    FROM exams e
-    WHERE (? = 0 OR e.is_published = 1)
-      AND (? = '' OR e.title LIKE ? COLLATE NOCASE OR IFNULL(e.exam_code,'') LIKE ? COLLATE NOCASE
-           OR IFNULL(e.subject,'') LIKE ? COLLATE NOCASE)
-    ORDER BY e.updated_at DESC, e.id DESC
-  `).all(publishedOnly ? 1 : 0, search.trim(), like, like, like);
+  return all(
+    `SELECT e.*,
+            (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) AS question_count,
+            (SELECT COUNT(*) FROM attempts a WHERE a.exam_id = e.id AND a.status = 'submitted') AS attempt_count
+     FROM exams e
+     WHERE (? = 0 OR e.is_published = 1)
+       AND (? = '' OR e.title ILIKE ? OR COALESCE(e.exam_code,'') ILIKE ?
+            OR COALESCE(e.subject,'') ILIKE ?)
+     ORDER BY e.updated_at DESC, e.id DESC`,
+    [publishedOnly ? 1 : 0, search.trim(), like, like, like]
+  );
 }
 
 /**
@@ -104,147 +108,155 @@ function listExams({ publishedOnly = false, search = '' } = {}) {
  * A student with no category set yet (pre-category account, or mid-signup)
  * sees nothing until one is chosen.
  */
-function listExamsForStudent(userId, category) {
+async function listExamsForStudent(userId, category) {
   const clean = cleanCategory(category);
   if (!clean) return [];
-  return getDb().prepare(`
-    SELECT e.*,
-           (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) AS question_count,
-           (SELECT COUNT(*) FROM attempts a WHERE a.exam_id = e.id AND a.user_id = ? AND a.status = 'submitted') AS my_attempts,
-           (SELECT MAX(a.percentage) FROM attempts a WHERE a.exam_id = e.id AND a.user_id = ? AND a.status = 'submitted') AS best_percentage,
-           (SELECT a.id FROM attempts a WHERE a.exam_id = e.id AND a.user_id = ? AND a.status = 'in_progress'
-             ORDER BY a.id DESC LIMIT 1) AS open_attempt_id
-    FROM exams e
-    WHERE e.is_published = 1
-      AND e.category = ?
-      AND (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) > 0
-    ORDER BY e.title COLLATE NOCASE
-  `).all(Number(userId), Number(userId), Number(userId), clean);
+  return all(
+    `SELECT e.*,
+            (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) AS question_count,
+            (SELECT COUNT(*) FROM attempts a WHERE a.exam_id = e.id AND a.user_id = ? AND a.status = 'submitted') AS my_attempts,
+            (SELECT MAX(a.percentage) FROM attempts a WHERE a.exam_id = e.id AND a.user_id = ? AND a.status = 'submitted') AS best_percentage,
+            (SELECT a.id FROM attempts a WHERE a.exam_id = e.id AND a.user_id = ? AND a.status = 'in_progress'
+              ORDER BY a.id DESC LIMIT 1) AS open_attempt_id
+     FROM exams e
+     WHERE e.is_published = 1
+       AND e.category = ?
+       AND (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) > 0
+     ORDER BY LOWER(e.title)`,
+    [Number(userId), Number(userId), Number(userId), clean]
+  );
 }
 
 /* ------------------------------------------------------- questions ----- */
 
-function nextPosition(examId) {
-  const row = getDb()
-    .prepare('SELECT IFNULL(MAX(position), 0) AS p FROM questions WHERE exam_id = ?')
-    .get(Number(examId));
+/** `db` is an optional { get, all, run } -- pass a transaction's handle to
+ *  keep this call inside that transaction (see addQuestionsBulk). */
+async function nextPosition(examId, db = { get, all, run }) {
+  const row = await db.get('SELECT COALESCE(MAX(position), 0) AS p FROM questions WHERE exam_id = ?', [Number(examId)]);
   return (row?.p || 0) + 1;
+}
+
+async function touchExam(examId, db = { get, all, run }) {
+  await db.run(`UPDATE exams SET updated_at = ${NOW_SQL} WHERE id = ?`, [Number(examId)]);
 }
 
 /**
  * Insert one question with its options.
  * options: [{ text, isCorrect, label? }]
+ * `db` is an optional { get, all, run } -- pass a transaction's handle to
+ * keep this call inside that transaction (see addQuestionsBulk).
  */
-function addQuestion(examId, { text, type = 'single', explanation = null, marks = 1, options = [], position = null, image = null }) {
-  const db = getDb();
+async function addQuestion(examId, { text, type = 'single', explanation = null, marks = 1, options = [], position = null, image = null }, db = { get, all, run }) {
   const questionType = type === 'multiple' ? 'multiple' : 'single';
-  const pos = position === null ? nextPosition(examId) : toInt(position, 0);
+  const pos = position === null ? await nextPosition(examId, db) : toInt(position, 0);
 
-  const result = db.prepare(`
-    INSERT INTO questions (exam_id, question_text, question_type, image, explanation, marks, position)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    Number(examId),
-    String(text).trim(),
-    questionType,
-    image ? String(image).trim() : null,
-    explanation ? String(explanation).trim() : null,
-    Number(marks) > 0 ? Number(marks) : 1,
-    pos
+  const result = await db.run(
+    `INSERT INTO questions (exam_id, question_text, question_type, image, explanation, marks, position)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     RETURNING id`,
+    [
+      Number(examId),
+      String(text).trim(),
+      questionType,
+      image ? String(image).trim() : null,
+      explanation ? String(explanation).trim() : null,
+      Number(marks) > 0 ? Number(marks) : 1,
+      pos,
+    ]
   );
 
   const questionId = Number(result.lastInsertRowid);
-  const insertOption = db.prepare(`
-    INSERT INTO options (question_id, label, option_text, is_correct, position)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  options.forEach((option, index) => {
-    insertOption.run(
-      questionId,
-      option.label || LABELS[index] || String(index + 1),
-      String(option.text).trim(),
-      option.isCorrect ? 1 : 0,
-      index + 1
+  let index = 0;
+  for (const option of options) {
+    await db.run(
+      `INSERT INTO options (question_id, label, option_text, is_correct, position)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        questionId,
+        option.label || LABELS[index] || String(index + 1),
+        String(option.text).trim(),
+        option.isCorrect ? 1 : 0,
+        index + 1,
+      ]
     );
-  });
+    index++;
+  }
 
-  touchExam(examId);
+  await touchExam(examId, db);
   return questionId;
 }
 
 /** Replace a question and all of its options. */
-function updateQuestion(questionId, { text, type, explanation, marks, options, image = null }) {
-  return transaction((db) => {
-    const existing = db.prepare('SELECT exam_id FROM questions WHERE id = ?').get(Number(questionId));
+async function updateQuestion(questionId, { text, type, explanation, marks, options, image = null }) {
+  return transaction(async (tx) => {
+    const existing = await tx.get('SELECT exam_id FROM questions WHERE id = ?', [Number(questionId)]);
     if (!existing) throw new Error('Question not found');
 
-    db.prepare(`
-      UPDATE questions SET question_text = ?, question_type = ?, image = ?, explanation = ?, marks = ?
-      WHERE id = ?
-    `).run(
-      String(text).trim(),
-      type === 'multiple' ? 'multiple' : 'single',
-      image ? String(image).trim() : null,
-      explanation ? String(explanation).trim() : null,
-      Number(marks) > 0 ? Number(marks) : 1,
-      Number(questionId)
+    await tx.run(
+      `UPDATE questions SET question_text = ?, question_type = ?, image = ?, explanation = ?, marks = ?
+       WHERE id = ?`,
+      [
+        String(text).trim(),
+        type === 'multiple' ? 'multiple' : 'single',
+        image ? String(image).trim() : null,
+        explanation ? String(explanation).trim() : null,
+        Number(marks) > 0 ? Number(marks) : 1,
+        Number(questionId),
+      ]
     );
 
-    db.prepare('DELETE FROM options WHERE question_id = ?').run(Number(questionId));
-    const insertOption = db.prepare(`
-      INSERT INTO options (question_id, label, option_text, is_correct, position)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    options.forEach((option, index) => {
-      insertOption.run(
-        Number(questionId),
-        option.label || LABELS[index] || String(index + 1),
-        String(option.text).trim(),
-        option.isCorrect ? 1 : 0,
-        index + 1
+    await tx.run('DELETE FROM options WHERE question_id = ?', [Number(questionId)]);
+    let index = 0;
+    for (const option of options) {
+      await tx.run(
+        `INSERT INTO options (question_id, label, option_text, is_correct, position)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          Number(questionId),
+          option.label || LABELS[index] || String(index + 1),
+          String(option.text).trim(),
+          option.isCorrect ? 1 : 0,
+          index + 1,
+        ]
       );
-    });
+      index++;
+    }
 
-    db.prepare("UPDATE exams SET updated_at = datetime('now') WHERE id = ?").run(existing.exam_id);
+    await tx.run(`UPDATE exams SET updated_at = ${NOW_SQL} WHERE id = ?`, [existing.exam_id]);
     return existing.exam_id;
   });
 }
 
 /** Bulk insert (used by the importer). Returns the number of questions saved. */
-function addQuestionsBulk(examId, questions) {
-  return transaction(() => {
+async function addQuestionsBulk(examId, questions) {
+  return transaction(async (tx) => {
     let saved = 0;
-    let position = nextPosition(examId);
+    let position = await nextPosition(examId, tx);
     for (const question of questions) {
-      addQuestion(examId, { ...question, position: position++ });
+      await addQuestion(examId, { ...question, position: position++ }, tx);
       saved++;
     }
     return saved;
   });
 }
 
-function findQuestion(questionId) {
-  const db = getDb();
-  const question = db.prepare('SELECT * FROM questions WHERE id = ?').get(Number(questionId));
+async function findQuestion(questionId) {
+  const question = await get('SELECT * FROM questions WHERE id = ?', [Number(questionId)]);
   if (!question) return null;
-  question.options = db
-    .prepare('SELECT * FROM options WHERE question_id = ? ORDER BY position, id')
-    .all(Number(questionId));
+  question.options = await all('SELECT * FROM options WHERE question_id = ? ORDER BY position, id', [Number(questionId)]);
   return question;
 }
 
-function listQuestions(examId) {
-  const db = getDb();
-  const questions = db
-    .prepare('SELECT * FROM questions WHERE exam_id = ? ORDER BY position, id')
-    .all(Number(examId));
+async function listQuestions(examId) {
+  const questions = await all('SELECT * FROM questions WHERE exam_id = ? ORDER BY position, id', [Number(examId)]);
   if (questions.length === 0) return [];
 
-  const options = db
-    .prepare(`SELECT o.* FROM options o
-              JOIN questions q ON q.id = o.question_id
-              WHERE q.exam_id = ? ORDER BY o.position, o.id`)
-    .all(Number(examId));
+  const options = await all(
+    `SELECT o.* FROM options o
+     JOIN questions q ON q.id = o.question_id
+     WHERE q.exam_id = ? ORDER BY o.position, o.id`,
+    [Number(examId)]
+  );
 
   const byQuestion = new Map();
   for (const option of options) {
@@ -257,36 +269,31 @@ function listQuestions(examId) {
   return questions;
 }
 
-function deleteQuestion(questionId) {
-  const db = getDb();
-  const row = db.prepare('SELECT exam_id FROM questions WHERE id = ?').get(Number(questionId));
-  db.prepare('DELETE FROM questions WHERE id = ?').run(Number(questionId));
-  if (row) touchExam(row.exam_id);
+async function deleteQuestion(questionId) {
+  const row = await get('SELECT exam_id FROM questions WHERE id = ?', [Number(questionId)]);
+  await run('DELETE FROM questions WHERE id = ?', [Number(questionId)]);
+  if (row) await touchExam(row.exam_id);
 }
 
-function deleteAllQuestions(examId) {
-  getDb().prepare('DELETE FROM questions WHERE exam_id = ?').run(Number(examId));
-  touchExam(examId);
+async function deleteAllQuestions(examId) {
+  await run('DELETE FROM questions WHERE exam_id = ?', [Number(examId)]);
+  await touchExam(examId);
 }
 
-function moveQuestion(questionId, direction) {
-  return transaction((db) => {
-    const current = db.prepare('SELECT * FROM questions WHERE id = ?').get(Number(questionId));
+async function moveQuestion(questionId, direction) {
+  return transaction(async (tx) => {
+    const current = await tx.get('SELECT * FROM questions WHERE id = ?', [Number(questionId)]);
     if (!current) return;
-    const neighbour = db.prepare(`
-      SELECT * FROM questions
-      WHERE exam_id = ? AND position ${direction === 'up' ? '<' : '>'} ?
-      ORDER BY position ${direction === 'up' ? 'DESC' : 'ASC'} LIMIT 1
-    `).get(current.exam_id, current.position);
+    const neighbour = await tx.get(
+      `SELECT * FROM questions
+       WHERE exam_id = ? AND position ${direction === 'up' ? '<' : '>'} ?
+       ORDER BY position ${direction === 'up' ? 'DESC' : 'ASC'} LIMIT 1`,
+      [current.exam_id, current.position]
+    );
     if (!neighbour) return;
-    const update = db.prepare('UPDATE questions SET position = ? WHERE id = ?');
-    update.run(neighbour.position, current.id);
-    update.run(current.position, neighbour.id);
+    await tx.run('UPDATE questions SET position = ? WHERE id = ?', [neighbour.position, current.id]);
+    await tx.run('UPDATE questions SET position = ? WHERE id = ?', [current.position, neighbour.id]);
   });
-}
-
-function touchExam(examId) {
-  getDb().prepare("UPDATE exams SET updated_at = datetime('now') WHERE id = ?").run(Number(examId));
 }
 
 const NO_SUBJECT = 'Other papers';
@@ -302,14 +309,18 @@ function subjectKey(value) {
 }
 
 /** Every subject that has at least one exam, for pick-lists and filters. */
-function subjectsInUse({ publishedOnly = false } = {}) {
-  const rows = getDb().prepare(`
-    SELECT DISTINCT TRIM(subject) AS subject FROM exams
-    WHERE TRIM(IFNULL(subject, '')) <> ''
-      AND (? = 0 OR is_published = 1)
-    ORDER BY subject COLLATE NOCASE
-  `).all(publishedOnly ? 1 : 0);
-  return rows.map((row) => row.subject);
+async function subjectsInUse({ publishedOnly = false } = {}) {
+  const rows = await all(
+    `SELECT DISTINCT TRIM(subject) AS subject FROM exams
+     WHERE TRIM(COALESCE(subject, '')) <> ''
+       AND (? = 0 OR is_published = 1)`,
+    [publishedOnly ? 1 : 0]
+  );
+  // Sorted here rather than in SQL: Postgres requires a SELECT DISTINCT's
+  // ORDER BY expressions to appear in the select list verbatim, so a
+  // case-insensitive sort can't be expressed as `ORDER BY LOWER(subject)`
+  // alongside `DISTINCT TRIM(subject)`.
+  return rows.map((row) => row.subject).sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -362,6 +373,10 @@ function groupBySubject(list) {
  * Uses the description the administrator wrote; when that is blank, writes one
  * from the paper's own facts so the card is never empty. Worked out at display
  * time rather than stored, so it stays true if the settings change later.
+ *
+ * Synchronous -- every caller already has a question count in hand (either
+ * passed in, or on `exam.question_count` from the query that loaded it), so
+ * this never needs to touch the database itself.
  */
 function describe(exam, questionCount) {
   const written = String(exam.description || '').trim();
@@ -369,7 +384,7 @@ function describe(exam, questionCount) {
 
   const total = Number.isFinite(questionCount)
     ? questionCount
-    : (exam.question_count !== undefined ? Number(exam.question_count) : countQuestions(exam.id));
+    : Number(exam.question_count) || 0;
 
   const sentences = [];
 
@@ -397,10 +412,9 @@ function describe(exam, questionCount) {
   return sentences.join(' ');
 }
 
-function countQuestions(examId) {
-  return getDb()
-    .prepare('SELECT COUNT(*) AS n FROM questions WHERE exam_id = ?')
-    .get(Number(examId)).n;
+async function countQuestions(examId) {
+  const row = await get('SELECT COUNT(*) AS n FROM questions WHERE exam_id = ?', [Number(examId)]);
+  return row.n;
 }
 
 module.exports = {

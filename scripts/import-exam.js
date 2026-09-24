@@ -10,10 +10,10 @@
  *
  * Runs the exact same parsing and validation as Admin -> Import an exam
  * file (src/lib/parsers + src/models/exams.js), so a file that would work
- * through the browser works the same way here. Uses the same DATABASE_FILE
- * (or .env) as the app, in WAL mode, so this is safe to run whether the
- * server is running or not -- no restart needed, the new exam shows up on
- * the next page load.
+ * through the browser works the same way here. Uses the same DATABASE_URL
+ * (or .env) as the app, so this is safe to run whether the server is
+ * running or not -- no restart needed, the new exam shows up on the next
+ * page load.
  */
 
 const fs = require('node:fs');
@@ -36,6 +36,7 @@ if (!fs.existsSync(resolved)) {
 
 const { parseQuestions } = require('../src/lib/parsers');
 const exams = require('../src/models/exams');
+const { closeDb } = require('../src/db');
 
 const buffer = fs.readFileSync(resolved);
 
@@ -92,15 +93,21 @@ const examData = {
   isPublished,
 };
 
-const exam = exams.createExam(examData, null);
-const saved = exams.addQuestionsBulk(exam.id, parsed.questions);
+(async () => {
+  const exam = await exams.createExam(examData, null);
+  const saved = await exams.addQuestionsBulk(exam.id, parsed.questions);
 
-console.log(`Created "${exam.title}" (exam #${exam.id}) with ${saved} question${saved === 1 ? '' : 's'}.`);
-console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
-if (parsed.issues.length) {
-  console.log(`\n${parsed.issues.length} question${parsed.issues.length === 1 ? '' : 's'} had issues and were skipped:`);
-  for (const issue of parsed.issues.slice(0, 10)) {
-    console.log(`  - ${issue.reference}: ${issue.problem}`);
+  console.log(`Created "${exam.title}" (exam #${exam.id}) with ${saved} question${saved === 1 ? '' : 's'}.`);
+  console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
+  if (parsed.issues.length) {
+    console.log(`\n${parsed.issues.length} question${parsed.issues.length === 1 ? '' : 's'} had issues and were skipped:`);
+    for (const issue of parsed.issues.slice(0, 10)) {
+      console.log(`  - ${issue.reference}: ${issue.problem}`);
+    }
   }
-}
-console.log(`\nView it at http://localhost:3000/admin/exams/${exam.id} (no restart needed).`);
+  console.log(`\nView it at http://localhost:3000/admin/exams/${exam.id} (no restart needed).`);
+  await closeDb();
+})().catch((err) => {
+  console.error('[import-exam] failed:', err);
+  process.exitCode = 1;
+});

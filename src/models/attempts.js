@@ -2,8 +2,11 @@
 /** Attempts: starting an exam, saving answers, and automatic marking. */
 
 const crypto = require('node:crypto');
-const { getDb, transaction } = require('../db');
+const { get, all, run, transaction } = require('../db');
 const exams = require('./exams');
+
+/** Postgres equivalent of SQLite's `datetime('now')`, same string shape. */
+const NOW_SQL = "TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS')";
 
 /** Fisher-Yates using crypto randomness. */
 function shuffle(items) {
@@ -28,11 +31,11 @@ function parseJson(value, fallback) {
  * Create an attempt. The selection and ordering of questions/options is frozen
  * at start time so a refresh never reshuffles the paper mid-exam.
  */
-function startAttempt(userId, exam) {
-  const all = exams.listQuestions(exam.id);
-  if (all.length === 0) throw new Error('This exam has no questions yet.');
+async function startAttempt(userId, exam) {
+  const questions = await exams.listQuestions(exam.id);
+  if (questions.length === 0) throw new Error('This exam has no questions yet.');
 
-  let selected = exam.shuffle_questions ? shuffle(all) : all;
+  let selected = exam.shuffle_questions ? shuffle(questions) : questions;
   if (exam.questions_per_attempt > 0 && exam.questions_per_attempt < selected.length) {
     selected = selected.slice(0, exam.questions_per_attempt);
   }
@@ -47,48 +50,46 @@ function startAttempt(userId, exam) {
     ? Date.now() + exam.duration_minutes * 60 * 1000
     : null;
 
-  const result = getDb().prepare(`
-    INSERT INTO attempts (user_id, exam_id, status, expires_at, question_ids, option_order)
-    VALUES (?, ?, 'in_progress', ?, ?, ?)
-  `).run(
-    Number(userId),
-    Number(exam.id),
-    expiresAt,
-    JSON.stringify(selected.map((q) => q.id)),
-    JSON.stringify(optionOrder)
+  const result = await run(
+    `INSERT INTO attempts (user_id, exam_id, status, expires_at, question_ids, option_order)
+     VALUES (?, ?, 'in_progress', ?, ?, ?)
+     RETURNING id`,
+    [
+      Number(userId),
+      Number(exam.id),
+      expiresAt,
+      JSON.stringify(selected.map((q) => q.id)),
+      JSON.stringify(optionOrder),
+    ]
   );
 
   return findAttempt(result.lastInsertRowid);
 }
 
-function findAttempt(id) {
-  const attempt = getDb().prepare('SELECT * FROM attempts WHERE id = ?').get(Number(id));
+async function findAttempt(id) {
+  const attempt = await get('SELECT * FROM attempts WHERE id = ?', [Number(id)]);
   if (!attempt) return null;
   attempt.questionIds = parseJson(attempt.question_ids, []);
   attempt.optionOrder = parseJson(attempt.option_order, {});
   return attempt;
 }
 
-function findOpenAttempt(userId, examId) {
-  const row = getDb().prepare(`
-    SELECT id FROM attempts
-    WHERE user_id = ? AND exam_id = ? AND status = 'in_progress'
-    ORDER BY id DESC LIMIT 1
-  `).get(Number(userId), Number(examId));
+async function findOpenAttempt(userId, examId) {
+  const row = await get(
+    `SELECT id FROM attempts
+     WHERE user_id = ? AND exam_id = ? AND status = 'in_progress'
+     ORDER BY id DESC LIMIT 1`,
+    [Number(userId), Number(examId)]
+  );
   return row ? findAttempt(row.id) : null;
 }
 
 /** Questions for an attempt, in the frozen order, with options in frozen order. */
-function getAttemptQuestions(attempt) {
+async function getAttemptQuestions(attempt) {
   if (attempt.questionIds.length === 0) return [];
-  const db = getDb();
   const placeholders = attempt.questionIds.map(() => '?').join(',');
-  const questions = db
-    .prepare(`SELECT * FROM questions WHERE id IN (${placeholders})`)
-    .all(...attempt.questionIds);
-  const options = db
-    .prepare(`SELECT * FROM options WHERE question_id IN (${placeholders})`)
-    .all(...attempt.questionIds);
+  const questions = await all(`SELECT * FROM questions WHERE id IN (${placeholders})`, attempt.questionIds);
+  const options = await all(`SELECT * FROM options WHERE question_id IN (${placeholders})`, attempt.questionIds);
 
   const optionsByQuestion = new Map();
   for (const option of options) {
@@ -119,103 +120,101 @@ function getAttemptQuestions(attempt) {
 }
 
 /** Answers already saved for an attempt, keyed by question id. */
-function getSavedAnswers(attemptId) {
-  const rows = getDb()
-    .prepare('SELECT question_id, selected FROM answers WHERE attempt_id = ?')
-    .all(Number(attemptId));
+async function getSavedAnswers(attemptId) {
+  const rows = await all('SELECT question_id, selected FROM answers WHERE attempt_id = ?', [Number(attemptId)]);
   const map = new Map();
   for (const row of rows) map.set(row.question_id, parseJson(row.selected, []));
   return map;
 }
 
 /** Store a student's selection for one question (no marking yet). */
-function saveAnswer(attemptId, questionId, selectedOptionIds) {
+async function saveAnswer(attemptId, questionId, selectedOptionIds) {
   const selected = JSON.stringify(
     [...new Set((selectedOptionIds || []).map(Number).filter(Number.isFinite))]
   );
-  getDb().prepare(`
-    INSERT INTO answers (attempt_id, question_id, selected)
-    VALUES (?, ?, ?)
-    ON CONFLICT (attempt_id, question_id) DO UPDATE SET selected = excluded.selected
-  `).run(Number(attemptId), Number(questionId), selected);
+  await run(
+    `INSERT INTO answers (attempt_id, question_id, selected)
+     VALUES (?, ?, ?)
+     ON CONFLICT (attempt_id, question_id) DO UPDATE SET selected = excluded.selected`,
+    [Number(attemptId), Number(questionId), selected]
+  );
 }
 
 /**
  * Mark an attempt and store the result.
  * `responses` is a Map/object of questionId -> array of option ids.
  */
-function submitAttempt(attempt, responses) {
-  return transaction((db) => {
-    const questions = getAttemptQuestions(attempt);
-    const exam = exams.findExam(attempt.exam_id);
+async function submitAttempt(attempt, responses) {
+  // Reads only -- nothing in this transaction has written anything yet, so
+  // these don't need to run inside it.
+  const questions = await getAttemptQuestions(attempt);
+  const exam = await exams.findExam(attempt.exam_id);
 
-    const upsertAnswer = db.prepare(`
-      INSERT INTO answers (attempt_id, question_id, selected, is_correct, marks_awarded)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT (attempt_id, question_id) DO UPDATE SET
-        selected = excluded.selected,
-        is_correct = excluded.is_correct,
-        marks_awarded = excluded.marks_awarded
-    `);
+  let score = 0;
+  let totalMarks = 0;
+  const rows = [];
 
-    let score = 0;
-    let totalMarks = 0;
+  for (const question of questions) {
+    const marks = Number(question.marks) || 1;
+    totalMarks += marks;
 
-    for (const question of questions) {
-      const marks = Number(question.marks) || 1;
-      totalMarks += marks;
+    const rawSelection = responses instanceof Map
+      ? responses.get(question.id)
+      : responses[question.id];
+    const selected = [...new Set((rawSelection || []).map(Number).filter(Number.isFinite))];
 
-      const rawSelection = responses instanceof Map
-        ? responses.get(question.id)
-        : responses[question.id];
-      const selected = [...new Set((rawSelection || []).map(Number).filter(Number.isFinite))];
+    const validIds = new Set(question.options.map((o) => o.id));
+    const cleanSelection = selected.filter((id) => validIds.has(id));
+    const correctIds = question.options.filter((o) => o.is_correct).map((o) => o.id);
 
-      const validIds = new Set(question.options.map((o) => o.id));
-      const cleanSelection = selected.filter((id) => validIds.has(id));
-      const correctIds = question.options.filter((o) => o.is_correct).map((o) => o.id);
+    // Correct when the selection matches the correct set exactly.
+    const isCorrect =
+      correctIds.length > 0 &&
+      cleanSelection.length === correctIds.length &&
+      correctIds.every((id) => cleanSelection.includes(id));
 
-      // Correct when the selection matches the correct set exactly.
-      const isCorrect =
-        correctIds.length > 0 &&
-        cleanSelection.length === correctIds.length &&
-        correctIds.every((id) => cleanSelection.includes(id));
+    const awarded = isCorrect ? marks : 0;
+    score += awarded;
 
-      const awarded = isCorrect ? marks : 0;
-      score += awarded;
+    rows.push({ questionId: question.id, cleanSelection, isCorrect, awarded });
+  }
 
-      upsertAnswer.run(
-        attempt.id,
-        question.id,
-        JSON.stringify(cleanSelection),
-        isCorrect ? 1 : 0,
-        awarded
+  const percentage = totalMarks > 0 ? Math.round((score / totalMarks) * 1000) / 10 : 0;
+  const passed = percentage >= (exam?.pass_mark ?? 50) ? 1 : 0;
+
+  await transaction(async (tx) => {
+    for (const row of rows) {
+      await tx.run(
+        `INSERT INTO answers (attempt_id, question_id, selected, is_correct, marks_awarded)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (attempt_id, question_id) DO UPDATE SET
+           selected = excluded.selected,
+           is_correct = excluded.is_correct,
+           marks_awarded = excluded.marks_awarded`,
+        [attempt.id, row.questionId, JSON.stringify(row.cleanSelection), row.isCorrect ? 1 : 0, row.awarded]
       );
     }
 
-    const percentage = totalMarks > 0 ? Math.round((score / totalMarks) * 1000) / 10 : 0;
-    const passed = percentage >= (exam?.pass_mark ?? 50) ? 1 : 0;
-
-    db.prepare(`
-      UPDATE attempts
-      SET status = 'submitted', submitted_at = datetime('now'),
-          score = ?, total_marks = ?, percentage = ?, passed = ?
-      WHERE id = ?
-    `).run(score, totalMarks, percentage, passed, attempt.id);
-
-    return { score, totalMarks, percentage, passed: Boolean(passed) };
+    await tx.run(
+      `UPDATE attempts
+       SET status = 'submitted', submitted_at = ${NOW_SQL},
+           score = ?, total_marks = ?, percentage = ?, passed = ?
+       WHERE id = ?`,
+      [score, totalMarks, percentage, passed, attempt.id]
+    );
   });
+
+  return { score, totalMarks, percentage, passed: Boolean(passed) };
 }
 
 /** Full result detail for the review screen. */
-function getAttemptResult(attemptId) {
-  const attempt = findAttempt(attemptId);
+async function getAttemptResult(attemptId) {
+  const attempt = await findAttempt(attemptId);
   if (!attempt) return null;
 
-  const exam = exams.findExam(attempt.exam_id);
-  const questions = getAttemptQuestions(attempt);
-  const answers = getDb()
-    .prepare('SELECT * FROM answers WHERE attempt_id = ?')
-    .all(Number(attemptId));
+  const exam = await exams.findExam(attempt.exam_id);
+  const questions = await getAttemptQuestions(attempt);
+  const answers = await all('SELECT * FROM answers WHERE attempt_id = ?', [Number(attemptId)]);
   const answerByQuestion = new Map(answers.map((a) => [a.question_id, a]));
 
   const review = questions.map((question, index) => {
@@ -246,64 +245,79 @@ function getAttemptResult(attemptId) {
   };
 }
 
-function listAttemptsForUser(userId, limit = 50) {
-  return getDb().prepare(`
-    SELECT a.*, e.title AS exam_title, e.exam_code, e.pass_mark
-    FROM attempts a
-    JOIN exams e ON e.id = a.exam_id
-    WHERE a.user_id = ? AND a.status = 'submitted'
-    ORDER BY a.submitted_at DESC
-    LIMIT ?
-  `).all(Number(userId), Number(limit));
+async function listAttemptsForUser(userId, limit = 50) {
+  return all(
+    `SELECT a.*, e.title AS exam_title, e.exam_code, e.pass_mark
+     FROM attempts a
+     JOIN exams e ON e.id = a.exam_id
+     WHERE a.user_id = ? AND a.status = 'submitted'
+     ORDER BY a.submitted_at DESC
+     LIMIT ?`,
+    [Number(userId), Number(limit)]
+  );
 }
 
-function listAllAttempts({ examId = null, userId = null, limit = 200 } = {}) {
+async function listAllAttempts({ examId = null, userId = null, limit = 200 } = {}) {
   const exam = examId ? Number(examId) : null;
   const user = userId ? Number(userId) : null;
-  return getDb().prepare(`
-    SELECT a.*, e.title AS exam_title, e.exam_code, u.full_name, u.email, u.student_number
-    FROM attempts a
-    JOIN exams e ON e.id = a.exam_id
-    JOIN users u ON u.id = a.user_id
-    WHERE a.status = 'submitted'
-      AND (? IS NULL OR a.exam_id = ?)
-      AND (? IS NULL OR a.user_id = ?)
-    ORDER BY a.submitted_at DESC
-    LIMIT ?
-  `).all(exam, exam, user, user, Number(limit));
+  return all(
+    `SELECT a.*, e.title AS exam_title, e.exam_code, u.full_name, u.email, u.student_number
+     FROM attempts a
+     JOIN exams e ON e.id = a.exam_id
+     JOIN users u ON u.id = a.user_id
+     WHERE a.status = 'submitted'
+       AND (?::integer IS NULL OR a.exam_id = ?)
+       AND (?::integer IS NULL OR a.user_id = ?)
+     ORDER BY a.submitted_at DESC
+     LIMIT ?`,
+    [exam, exam, user, user, Number(limit)]
+  );
 }
 
-function abandonAttempt(attemptId) {
-  getDb().prepare("DELETE FROM attempts WHERE id = ? AND status = 'in_progress'").run(Number(attemptId));
+async function abandonAttempt(attemptId) {
+  await run("DELETE FROM attempts WHERE id = ? AND status = 'in_progress'", [Number(attemptId)]);
 }
 
-function statistics() {
-  const db = getDb();
+async function statistics() {
+  const [examCount, publishedExams, questionCount, attemptCount, averageScore, passRate] = await Promise.all([
+    get('SELECT COUNT(*) AS n FROM exams'),
+    get('SELECT COUNT(*) AS n FROM exams WHERE is_published = 1'),
+    get('SELECT COUNT(*) AS n FROM questions'),
+    get("SELECT COUNT(*) AS n FROM attempts WHERE status = 'submitted'"),
+    get("SELECT ROUND(AVG(percentage)::numeric, 1) AS avg FROM attempts WHERE status = 'submitted'"),
+    get("SELECT ROUND(100.0 * AVG(passed), 1) AS rate FROM attempts WHERE status = 'submitted'"),
+  ]);
   return {
-    exams: db.prepare('SELECT COUNT(*) AS n FROM exams').get().n,
-    publishedExams: db.prepare('SELECT COUNT(*) AS n FROM exams WHERE is_published = 1').get().n,
-    questions: db.prepare('SELECT COUNT(*) AS n FROM questions').get().n,
-    attempts: db.prepare("SELECT COUNT(*) AS n FROM attempts WHERE status = 'submitted'").get().n,
-    averageScore: db.prepare("SELECT ROUND(AVG(percentage), 1) AS avg FROM attempts WHERE status = 'submitted'").get().avg,
-    passRate: db.prepare("SELECT ROUND(100.0 * AVG(passed), 1) AS rate FROM attempts WHERE status = 'submitted'").get().rate,
+    exams: examCount.n,
+    publishedExams: publishedExams.n,
+    questions: questionCount.n,
+    attempts: attemptCount.n,
+    averageScore: averageScore.avg,
+    passRate: passRate.rate,
   };
 }
 
 /** Per-question difficulty for an exam, useful to spot bad imports. */
-function questionPerformance(examId) {
-  return getDb().prepare(`
-    SELECT q.id, q.question_text, q.position,
-           COUNT(ans.id) AS times_answered,
-           SUM(ans.is_correct) AS times_correct,
-           CASE WHEN COUNT(ans.id) = 0 THEN NULL
-                ELSE ROUND(100.0 * SUM(ans.is_correct) / COUNT(ans.id), 1) END AS correct_rate
-    FROM questions q
-    LEFT JOIN answers ans ON ans.question_id = q.id
-    LEFT JOIN attempts a ON a.id = ans.attempt_id AND a.status = 'submitted'
-    WHERE q.exam_id = ?
-    GROUP BY q.id
-    ORDER BY correct_rate IS NULL, correct_rate ASC
-  `).all(Number(examId));
+async function questionPerformance(examId) {
+  // Postgres only lets ORDER BY reference an output alias when the ORDER BY
+  // item IS that alias, not when it's part of a larger expression (unlike
+  // SQLite) -- so the CASE is repeated here rather than referencing
+  // `correct_rate` from ORDER BY.
+  const rateExpr = `CASE WHEN COUNT(ans.id) = 0 THEN NULL
+                 ELSE ROUND(100.0 * SUM(ans.is_correct) / COUNT(ans.id), 1) END`;
+  return all(
+    `SELECT q.id, q.question_text, q.position,
+            COUNT(ans.id) AS times_answered,
+            SUM(ans.is_correct) AS times_correct,
+            ${rateExpr} AS correct_rate
+     FROM questions q
+     LEFT JOIN answers ans ON ans.question_id = q.id
+     LEFT JOIN attempts a ON a.id = ans.attempt_id AND a.status = 'submitted'
+     WHERE q.exam_id = ?
+     GROUP BY q.id
+     ORDER BY (${rateExpr}) IS NULL, (${rateExpr}) ASC`,
+    [Number(examId)]
+  );
 }
 
 module.exports = {

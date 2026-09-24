@@ -32,9 +32,23 @@ const config = {
   port: Number(process.env.PORT || 3000),
   host: process.env.HOST || '0.0.0.0',
   env: process.env.NODE_ENV || 'development',
-  databaseFile: process.env.DATABASE_FILE
-    ? path.resolve(rootDir, process.env.DATABASE_FILE)
-    : path.join(rootDir, 'data', 'revision-engine.db'),
+  // The database, via `pg` -- a PostgreSQL connection string. Supabase gives
+  // you this under Project Settings -> Database -> Connection string.
+  //
+  // Use the *pooled* connection string (host has `pooler.supabase.com` and
+  // the port is 6543, via PgBouncer) rather than the direct one (port 5432)
+  // when deploying to Vercel or any other serverless platform -- a burst of
+  // traffic there can spin up many function instances at once, each opening
+  // its own connections, and Postgres itself only allows a limited number.
+  // Locally, point this at any Postgres you have running (see .env.example).
+  //
+  // Accepts DATABASE_URL, or SUPABASE_DB_URL as an alternate name in case
+  // that's what a Supabase/Vercel integration sets automatically.
+  databaseUrl: process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || '',
+  // Cap on concurrent connections this process opens to Postgres. Keep this
+  // low on serverless (each function instance gets its own pool) -- 5 is a
+  // safe default against Supabase's pooled connection string.
+  databasePoolMax: Number(process.env.DATABASE_POOL_MAX || 5),
   sessionTtlSeconds: Number(process.env.SESSION_TTL_HOURS || 12) * 3600,
   // Set COOKIE_SECURE=true when serving over HTTPS.
   cookieSecure: String(process.env.COOKIE_SECURE || 'false').toLowerCase() === 'true',

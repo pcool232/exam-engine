@@ -7,7 +7,7 @@ const users = require('../models/users');
 async function loadUser(req, res, next) {
   req.user = null;
   if (req.session?.userId) {
-    const user = users.findById(req.session.userId);
+    const user = await users.findById(req.session.userId);
     if (user && user.is_active) {
       req.user = user;
     } else {

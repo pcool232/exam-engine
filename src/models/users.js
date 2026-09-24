@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
-const { getDb } = require('../db');
+const { get, all, run } = require('../db');
 const { hashPassword, verifyPassword } = require('../lib/password');
 
 /** The exam levels Botswana students revise for. */
@@ -12,34 +12,33 @@ function cleanCategory(value) {
   return CATEGORIES.includes(v) ? v : null;
 }
 
-function findByEmail(email) {
-  return getDb()
-    .prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE')
-    .get(String(email || '').trim()) || null;
+async function findByEmail(email) {
+  return (await get('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [String(email || '').trim()])) || null;
 }
 
-function findById(id) {
-  return getDb().prepare('SELECT * FROM users WHERE id = ?').get(Number(id)) || null;
+async function findById(id) {
+  return (await get('SELECT * FROM users WHERE id = ?', [Number(id)])) || null;
 }
 
-function findByGoogleSub(sub) {
+async function findByGoogleSub(sub) {
   if (!sub) return null;
-  return getDb().prepare('SELECT * FROM users WHERE google_sub = ?').get(String(sub)) || null;
+  return (await get('SELECT * FROM users WHERE google_sub = ?', [String(sub)])) || null;
 }
 
-function create({ fullName, email, password, role = 'student', studentNumber = null, category = null }) {
-  const db = getDb();
-  const result = db
-    .prepare(`INSERT INTO users (full_name, email, password_hash, role, student_number, category)
-              VALUES (?, ?, ?, ?, ?, ?)`)
-    .run(
+async function create({ fullName, email, password, role = 'student', studentNumber = null, category = null }) {
+  const result = await run(
+    `INSERT INTO users (full_name, email, password_hash, role, student_number, category)
+     VALUES (?, ?, ?, ?, ?, ?)
+     RETURNING id`,
+    [
       String(fullName).trim(),
       String(email).trim().toLowerCase(),
       hashPassword(password),
       role,
       studentNumber ? String(studentNumber).trim() : null,
-      cleanCategory(category)
-    );
+      cleanCategory(category),
+    ]
+  );
   return findById(result.lastInsertRowid);
 }
 
@@ -50,37 +49,38 @@ function create({ fullName, email, password, role = 'student', studentNumber = n
  * student sets one (not offered yet; Google sign-in is the only way in for
  * these accounts today).
  */
-function createFromGoogle({ fullName, email, googleSub }) {
-  const db = getDb();
+async function createFromGoogle({ fullName, email, googleSub }) {
   const unusablePassword = crypto.randomBytes(32).toString('hex');
-  const result = db
-    .prepare(`INSERT INTO users (full_name, email, password_hash, role, google_sub)
-              VALUES (?, ?, ?, 'student', ?)`)
-    .run(
+  const result = await run(
+    `INSERT INTO users (full_name, email, password_hash, role, google_sub)
+     VALUES (?, ?, ?, 'student', ?)
+     RETURNING id`,
+    [
       String(fullName || email).trim(),
       String(email).trim().toLowerCase(),
       hashPassword(unusablePassword),
-      String(googleSub)
-    );
+      String(googleSub),
+    ]
+  );
   return findById(result.lastInsertRowid);
 }
 
 /** Links a Google account to an existing (email/password) user record. */
-function linkGoogleSub(userId, googleSub) {
-  getDb().prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(String(googleSub), Number(userId));
+async function linkGoogleSub(userId, googleSub) {
+  await run('UPDATE users SET google_sub = ? WHERE id = ?', [String(googleSub), Number(userId)]);
   return findById(userId);
 }
 
 /** Sets or changes a student's exam level. */
-function setCategory(userId, category) {
+async function setCategory(userId, category) {
   const clean = cleanCategory(category);
   if (!clean) return null;
-  getDb().prepare('UPDATE users SET category = ? WHERE id = ?').run(clean, Number(userId));
+  await run('UPDATE users SET category = ? WHERE id = ?', [clean, Number(userId)]);
   return findById(userId);
 }
 
-function authenticate(email, password) {
-  const user = findByEmail(email);
+async function authenticate(email, password) {
+  const user = await findByEmail(email);
   if (!user) {
     // Constant-ish work even when the account does not exist.
     verifyPassword(password, 'scrypt$16384$8$1$AAAA$AAAA');
@@ -90,49 +90,45 @@ function authenticate(email, password) {
   return verifyPassword(password, user.password_hash) ? user : null;
 }
 
-function updatePassword(userId, newPassword) {
-  getDb()
-    .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-    .run(hashPassword(newPassword), Number(userId));
+async function updatePassword(userId, newPassword) {
+  await run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(newPassword), Number(userId)]);
 }
 
-function setRole(userId, role) {
-  getDb().prepare('UPDATE users SET role = ? WHERE id = ?').run(role, Number(userId));
+async function setRole(userId, role) {
+  await run('UPDATE users SET role = ? WHERE id = ?', [role, Number(userId)]);
 }
 
-function setActive(userId, isActive) {
-  getDb().prepare('UPDATE users SET is_active = ? WHERE id = ?').run(isActive ? 1 : 0, Number(userId));
+async function setActive(userId, isActive) {
+  await run('UPDATE users SET is_active = ? WHERE id = ?', [isActive ? 1 : 0, Number(userId)]);
 }
 
-function remove(userId) {
-  getDb().prepare('DELETE FROM users WHERE id = ?').run(Number(userId));
+async function remove(userId) {
+  await run('DELETE FROM users WHERE id = ?', [Number(userId)]);
 }
 
-function listStudents({ search = '' } = {}) {
-  const db = getDb();
+async function listStudents({ search = '' } = {}) {
   const like = `%${search.trim()}%`;
-  return db.prepare(`
-    SELECT u.*,
-           (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id AND a.status = 'submitted') AS attempt_count,
-           (SELECT ROUND(AVG(a.percentage), 1) FROM attempts a WHERE a.user_id = u.id AND a.status = 'submitted') AS average_score
-    FROM users u
-    WHERE u.role = 'student'
-      AND (? = '' OR u.full_name LIKE ? COLLATE NOCASE OR u.email LIKE ? COLLATE NOCASE
-           OR IFNULL(u.student_number,'') LIKE ? COLLATE NOCASE)
-    ORDER BY u.created_at DESC
-  `).all(search.trim(), like, like, like);
+  return all(
+    `SELECT u.*,
+            (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id AND a.status = 'submitted') AS attempt_count,
+            (SELECT ROUND(AVG(a.percentage)::numeric, 1) FROM attempts a WHERE a.user_id = u.id AND a.status = 'submitted') AS average_score
+     FROM users u
+     WHERE u.role = 'student'
+       AND (? = '' OR u.full_name ILIKE ? OR u.email ILIKE ?
+            OR COALESCE(u.student_number,'') ILIKE ?)
+     ORDER BY u.created_at DESC`,
+    [search.trim(), like, like, like]
+  );
 }
 
-function listAdmins() {
-  return getDb().prepare("SELECT * FROM users WHERE role = 'admin' ORDER BY created_at").all();
+async function listAdmins() {
+  return all("SELECT * FROM users WHERE role = 'admin' ORDER BY created_at");
 }
 
-function countAll() {
-  const db = getDb();
-  return {
-    students: db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'student'").get().n,
-    admins: db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").get().n,
-  };
+async function countAll() {
+  const students = await get("SELECT COUNT(*) AS n FROM users WHERE role = 'student'");
+  const admins = await get("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'");
+  return { students: students.n, admins: admins.n };
 }
 
 module.exports = {

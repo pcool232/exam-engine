@@ -29,15 +29,16 @@ function collectResponses(body) {
 function register(app) {
   /* --------------------------------------------------------- dashboard -- */
 
-  app.get('/dashboard', requireStudent, (req, res) => {
+  app.get('/dashboard', requireStudent, async (req, res) => {
     if (req.user.role === 'admin') return res.redirect('/admin');
 
-    const available = exams.listExamsForStudent(req.user.id, req.user.category).map((exam) => ({
+    const rawAvailable = await exams.listExamsForStudent(req.user.id, req.user.category);
+    const available = rawAvailable.map((exam) => ({
       ...exam,
       blurb: exams.describe(exam, exam.question_count),
     }));
-    const recent = attempts.listAttemptsForUser(req.user.id, 5);
-    const submitted = attempts.listAttemptsForUser(req.user.id, 1000);
+    const recent = await attempts.listAttemptsForUser(req.user.id, 5);
+    const submitted = await attempts.listAttemptsForUser(req.user.id, 1000);
 
     const averageScore = submitted.length
       ? Math.round((submitted.reduce((sum, a) => sum + (a.percentage || 0), 0) / submitted.length) * 10) / 10
@@ -57,7 +58,7 @@ function register(app) {
       return res.redirect('/dashboard');
     }
 
-    res.render('student/dashboard', {
+    return res.render('student/dashboard', {
       title: chosen ? chosen.name : 'My revision dashboard',
       subjects,
       chosen,
@@ -76,19 +77,18 @@ function register(app) {
 
   /* ------------------------------------------------------- exam intro -- */
 
-  app.get('/exams/:id', requireStudent, (req, res) => {
-    const exam = exams.findExam(req.params.id);
+  app.get('/exams/:id', requireStudent, async (req, res) => {
+    const exam = await exams.findExam(req.params.id);
     if (!exam || !exam.is_published || exam.category !== req.user.category) {
       throw notFound('That exam is not available.');
     }
 
-    const questionCount = exams.countQuestions(exam.id);
-    const open = attempts.findOpenAttempt(req.user.id, exam.id);
-    const history = attempts
-      .listAttemptsForUser(req.user.id, 1000)
-      .filter((a) => a.exam_id === exam.id);
+    const questionCount = await exams.countQuestions(exam.id);
+    const open = await attempts.findOpenAttempt(req.user.id, exam.id);
+    const historyAll = await attempts.listAttemptsForUser(req.user.id, 1000);
+    const history = historyAll.filter((a) => a.exam_id === exam.id);
 
-    res.render('student/exam-intro', {
+    return res.render('student/exam-intro', {
       title: exam.title,
       exam,
       blurb: exams.describe(exam, questionCount),
@@ -103,43 +103,43 @@ function register(app) {
 
   /* ------------------------------------------------------ start / take -- */
 
-  app.post('/exams/:id/start', requireStudent, (req, res) => {
-    const exam = exams.findExam(req.params.id);
+  app.post('/exams/:id/start', requireStudent, async (req, res) => {
+    const exam = await exams.findExam(req.params.id);
     if (!exam || !exam.is_published || exam.category !== req.user.category) {
       throw notFound('That exam is not available.');
     }
 
-    const existing = attempts.findOpenAttempt(req.user.id, exam.id);
+    const existing = await attempts.findOpenAttempt(req.user.id, exam.id);
     if (existing) return res.redirect(`/attempts/${existing.id}`);
 
-    if (exams.countQuestions(exam.id) === 0) {
+    if ((await exams.countQuestions(exam.id)) === 0) {
       setFlash(req, 'error', 'That exam does not have any questions yet.');
       return res.redirect('/dashboard');
     }
 
-    const attempt = attempts.startAttempt(req.user.id, exam);
+    const attempt = await attempts.startAttempt(req.user.id, exam);
     return res.redirect(`/attempts/${attempt.id}`);
   });
 
-  app.get('/attempts/:id', requireStudent, (req, res) => {
-    const attempt = attempts.findAttempt(req.params.id);
+  app.get('/attempts/:id', requireStudent, async (req, res) => {
+    const attempt = await attempts.findAttempt(req.params.id);
     if (!attempt || attempt.user_id !== req.user.id) throw notFound('Attempt not found.');
     if (attempt.status === 'submitted') return res.redirect(`/results/${attempt.id}`);
 
-    const exam = exams.findExam(attempt.exam_id);
-    const questions = attempts.getAttemptQuestions(attempt);
-    const saved = attempts.getSavedAnswers(attempt.id);
+    const exam = await exams.findExam(attempt.exam_id);
+    const questions = await attempts.getAttemptQuestions(attempt);
+    const saved = await attempts.getSavedAnswers(attempt.id);
 
     // Time is up: mark whatever has been saved so far.
     if (attempt.expires_at && Date.now() > attempt.expires_at) {
       const responses = new Map();
       for (const [questionId, selection] of saved.entries()) responses.set(questionId, selection);
-      attempts.submitAttempt(attempt, responses);
+      await attempts.submitAttempt(attempt, responses);
       setFlash(req, 'error', 'Your time ran out, so the paper was submitted automatically.');
       return res.redirect(`/results/${attempt.id}`);
     }
 
-    res.render('student/attempt', {
+    return res.render('student/attempt', {
       title: `${exam.title} - in progress`,
       layoutVariant: 'exam',
       exam,
@@ -156,8 +156,8 @@ function register(app) {
   });
 
   /** Background save of a single answer (called by the browser as you click). */
-  app.post('/attempts/:id/answer', requireStudent, (req, res) => {
-    const attempt = attempts.findAttempt(req.params.id);
+  app.post('/attempts/:id/answer', requireStudent, async (req, res) => {
+    const attempt = await attempts.findAttempt(req.params.id);
     if (!attempt || attempt.user_id !== req.user.id) return res.json({ ok: false }, 404);
     if (attempt.status !== 'in_progress') return res.json({ ok: false, reason: 'submitted' }, 409);
 
@@ -165,29 +165,29 @@ function register(app) {
     if (!attempt.questionIds.includes(questionId)) return res.json({ ok: false }, 400);
 
     const selected = Array.isArray(req.body.selected) ? req.body.selected : [];
-    attempts.saveAnswer(attempt.id, questionId, selected);
+    await attempts.saveAnswer(attempt.id, questionId, selected);
     return res.json({ ok: true });
   });
 
-  app.post('/attempts/:id/submit', requireStudent, (req, res) => {
-    const attempt = attempts.findAttempt(req.params.id);
+  app.post('/attempts/:id/submit', requireStudent, async (req, res) => {
+    const attempt = await attempts.findAttempt(req.params.id);
     if (!attempt || attempt.user_id !== req.user.id) throw notFound('Attempt not found.');
     if (attempt.status === 'submitted') return res.redirect(`/results/${attempt.id}`);
 
     // Start from what was saved in the background, then overlay the posted form.
-    const responses = new Map(attempts.getSavedAnswers(attempt.id));
+    const responses = new Map(await attempts.getSavedAnswers(attempt.id));
     for (const [questionId, selection] of collectResponses(req.body).entries()) {
       responses.set(questionId, selection);
     }
 
-    attempts.submitAttempt(attempt, responses);
+    await attempts.submitAttempt(attempt, responses);
     return res.redirect(`/results/${attempt.id}`);
   });
 
-  app.post('/attempts/:id/abandon', requireStudent, (req, res) => {
-    const attempt = attempts.findAttempt(req.params.id);
+  app.post('/attempts/:id/abandon', requireStudent, async (req, res) => {
+    const attempt = await attempts.findAttempt(req.params.id);
     if (attempt && attempt.user_id === req.user.id && attempt.status === 'in_progress') {
-      attempts.abandonAttempt(attempt.id);
+      await attempts.abandonAttempt(attempt.id);
       setFlash(req, 'success', 'That attempt was discarded.');
     }
     return res.redirect('/dashboard');
@@ -195,15 +195,15 @@ function register(app) {
 
   /* ---------------------------------------------------------- results -- */
 
-  app.get('/results/:id', requireStudent, (req, res) => {
-    const result = attempts.getAttemptResult(req.params.id);
+  app.get('/results/:id', requireStudent, async (req, res) => {
+    const result = await attempts.getAttemptResult(req.params.id);
     if (!result) throw notFound('Result not found.');
 
     const isOwner = result.attempt.user_id === req.user.id;
     if (!isOwner && req.user.role !== 'admin') throw notFound('Result not found.');
     if (result.attempt.status !== 'submitted') return res.redirect(`/attempts/${result.attempt.id}`);
 
-    res.render('student/result', {
+    return res.render('student/result', {
       title: `Result - ${result.exam.title}`,
       ...result,
       showAnswers: Boolean(result.exam.show_answers) || req.user.role === 'admin',
@@ -211,10 +211,10 @@ function register(app) {
     });
   });
 
-  app.get('/history', requireStudent, (req, res) => {
-    res.render('student/history', {
+  app.get('/history', requireStudent, async (req, res) => {
+    return res.render('student/history', {
       title: 'My results',
-      attempts: attempts.listAttemptsForUser(req.user.id, 500),
+      attempts: await attempts.listAttemptsForUser(req.user.id, 500),
     });
   });
 }

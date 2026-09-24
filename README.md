@@ -25,22 +25,31 @@ exam-dump trainer, but running on your own server with your own papers.
 
 ## Requirements
 
-**Node.js 22.5 or newer.** That is the only requirement. The app uses Node's
-built-in SQLite, so there are **no npm dependencies to install** and nothing to
-compile — which also means no `node-gyp` build errors on your server.
+- **Node.js 22.5 or newer.** Check your version with `node --version`; if it's
+  older, install a current release from <https://nodejs.org>.
+- **A PostgreSQL database.** This app deploys to Vercel, whose serverless
+  functions have no persistent local disk, so it stores data in Postgres
+  rather than a local file — [Supabase](https://supabase.com) has a free tier
+  that works well. For local development, either point at your Supabase
+  project too, or run any Postgres on your own machine.
 
-Check your version with `node --version`. If it is older, install a current
-release from <https://nodejs.org>.
+The one npm dependency is `pg` (the Postgres driver) — run `npm install`
+once before the first `npm start`.
 
 ## Getting started
 
 ```bash
 cd revision-engine
+npm install
 
-# 1. Create the database and the first administrator account
+# 1. Point the app at your database (copy .env.example to .env and set
+#    DATABASE_URL to your Postgres connection string)
+cp .env.example .env
+
+# 2. Create the schema and the first administrator account
 npm run seed
 
-# 2. Start the server
+# 3. Start the server
 npm start
 ```
 
@@ -232,8 +241,36 @@ one, scores zero. There is no negative marking.
 
 ## Deployment
 
+### Deploying to Vercel
+
+1. **Create a Supabase project** at <https://supabase.com> (the free tier is
+   fine). Under **Project Settings → Database → Connection string**, copy the
+   **pooled** connection string (host contains `pooler.supabase.com`, port
+   `6543`) — not the direct one on port `5432`. Vercel can run many function
+   instances at once, each with its own small connection pool, and the
+   pooled string (PgBouncer) is what keeps that from exhausting Postgres's
+   own connection limit.
+2. **Push this project to a GitHub repo** and import it in Vercel
+   (**Add New → Project**). Vercel auto-detects `api/index.js` and
+   `vercel.json` — no build command needed.
+3. **Set environment variables** in the Vercel project (**Settings →
+   Environment Variables**):
+   - `DATABASE_URL` — the pooled connection string from step 1.
+   - `COOKIE_SECURE=true` — Vercel serves over HTTPS.
+   - `APP_NAME`, `ALLOW_REGISTRATION`, `GOOGLE_CLIENT_ID`, etc. as needed
+     (see **Configuration** below).
+4. **Seed the database once**, from your own machine, pointed at the same
+   `DATABASE_URL`:
+   ```bash
+   DATABASE_URL="<your pooled connection string>" npm run seed
+   ```
+5. **Deploy.** Every push to your main branch redeploys automatically.
+
+### Self-hosting
+
 Any machine that runs Node 22.5+ will do — a VPS, a Raspberry Pi, Render,
-Railway, Fly.io, or a PC on the school network.
+Railway, Fly.io, or a PC on the school network. It still needs a Postgres
+database to talk to (Supabase works here too, or one you run yourself).
 
 ```bash
 cp .env.example .env     # then edit it
@@ -265,9 +302,9 @@ Points worth attending to:
    WantedBy=multi-user.target
    ```
 
-3. **Back up `data/revision-engine.db`.** That single file holds every account,
-   question and result. Copy it somewhere safe on a schedule. (Copy the
-   `-wal` and `-shm` files alongside it, or stop the server first.)
+3. **Back up your Postgres database** on a schedule — Supabase does daily
+   backups on its paid tiers; on a free tier or a self-run Postgres, use
+   `pg_dump` yourself.
 4. **Set `ALLOW_REGISTRATION=false`** if you would rather create student accounts
    yourself from *Students* than let anyone sign up.
 
@@ -294,7 +331,8 @@ Every setting is optional; copy `.env.example` to `.env` and change what you nee
 | `PORT` | `3000` | Port to listen on |
 | `HOST` | `0.0.0.0` | Interface to bind |
 | `NODE_ENV` | `development` | Set to `production` on a server (enables template caching) |
-| `DATABASE_FILE` | `data/revision-engine.db` | Where the SQLite file lives |
+| `DATABASE_URL` | — (required) | PostgreSQL connection string (Supabase: *pooled*, port 6543, on Vercel) |
+| `DATABASE_POOL_MAX` | `5` | Max concurrent connections this process opens to Postgres |
 | `APP_NAME` | `Revision Engine` | Name shown in the header |
 | `SESSION_TTL_HOURS` | `12` | How long a sign-in lasts |
 | `COOKIE_SECURE` | `false` | Set `true` when serving over HTTPS |
@@ -308,20 +346,23 @@ Every setting is optional; copy `.env.example` to `.env` and change what you nee
 | `npm start` | Run the server |
 | `npm run dev` | Run with auto-restart on file changes |
 | `npm run seed` | Create the administrator (and sample exam) if missing |
-| `npm run reset-db` | **Delete everything** and start from a clean database |
+| `npm run reset-db` | **Drop every table** and start from a clean database |
 
 ## How it is put together
 
 ```
-server.js              start-up, middleware pipeline, routes, error pages
+src/app.js              builds the app: middleware pipeline, routes, error pages (no listener)
+server.js                local entrypoint: builds the app, starts listening
+api/index.js             Vercel serverless entrypoint
+vercel.json               rewrites every path to api/index
 src/
   config.js            environment configuration (.env loader)
-  db.js                SQLite connection and schema
+  db.js                PostgreSQL connection pool and schema (via `pg`)
   seed.js              first administrator + sample exam
   core/                a small web framework built on node:http
     app.js             routing, middleware, response helpers
     body.js            form, JSON and multipart/file-upload parsing
-    session.js         SQLite-backed sessions and CSRF tokens
+    session.js         Postgres-backed sessions and CSRF tokens
     static.js          static file serving
     template.js        the HTML template engine
   lib/
@@ -359,5 +400,3 @@ The pieces are in place to extend this: question categories and topic-level
 feedback, essay or short-answer questions marked by hand, images in questions,
 certificates on passing, emailed results, or a class/cohort grouping so a
 lecturer sees only their own students.
-#   e x a m - e n g i n e  
- 

@@ -23,7 +23,7 @@ function register(app) {
 
   app.get('/login', (req, res) => {
     if (req.user) return res.redirect(landingFor(req.user));
-    res.render('auth/login', {
+    return res.render('auth/login', {
       title: 'Sign in',
       nextUrl: safeNext(req.query.next) || '',
       values: {},
@@ -31,12 +31,12 @@ function register(app) {
     });
   });
 
-  app.post('/login', (req, res) => {
+  app.post('/login', async (req, res) => {
     const email = String(req.body.email || '').trim();
     const password = String(req.body.password || '');
     const nextUrl = safeNext(req.body.next);
 
-    const user = users.authenticate(email, password);
+    const user = await users.authenticate(email, password);
     if (!user) {
       return res.status(401).render('auth/login', {
         title: 'Sign in',
@@ -47,7 +47,7 @@ function register(app) {
     }
 
     // New session id on privilege change guards against session fixation.
-    req.regenerateSession({ userId: user.id });
+    await req.regenerateSession({ userId: user.id });
     return res.redirect(nextUrl || landingFor(user));
   });
 
@@ -77,15 +77,15 @@ function register(app) {
       return fail('Google sign-in did not go through. Please try again.');
     }
 
-    let user = users.findByGoogleSub(profile.sub);
+    let user = await users.findByGoogleSub(profile.sub);
     if (!user) {
-      const existing = users.findByEmail(profile.email);
+      const existing = await users.findByEmail(profile.email);
       if (existing) {
-        user = users.linkGoogleSub(existing.id, profile.sub);
+        user = await users.linkGoogleSub(existing.id, profile.sub);
       } else if (!config.allowRegistration) {
         return fail('Self-registration is switched off. Ask your administrator for an account.');
       } else {
-        user = users.createFromGoogle({ fullName: profile.name, email: profile.email, googleSub: profile.sub });
+        user = await users.createFromGoogle({ fullName: profile.name, email: profile.email, googleSub: profile.sub });
       }
     }
 
@@ -93,7 +93,7 @@ function register(app) {
       return fail('This account has been disabled. Contact your administrator.');
     }
 
-    req.regenerateSession({ userId: user.id });
+    await req.regenerateSession({ userId: user.id });
     return res.redirect(nextUrl || landingFor(user));
   });
 
@@ -109,12 +109,12 @@ function register(app) {
         errors: ['Self-registration is switched off. Ask your administrator for an account.'],
       });
     }
-    res.render('auth/register', {
+    return res.render('auth/register', {
       title: 'Create an account', values: {}, errors: [], categories: users.CATEGORIES,
     });
   });
 
-  app.post('/register', (req, res) => {
+  app.post('/register', async (req, res) => {
     if (!config.allowRegistration) {
       const err = new Error('Self-registration is switched off.');
       err.statusCode = 403;
@@ -137,7 +137,7 @@ function register(app) {
     const strength = checkPasswordStrength(password);
     if (strength) errors.push(strength);
     if (password !== confirmPassword) errors.push('The two passwords do not match.');
-    if (errors.length === 0 && users.findByEmail(values.email)) {
+    if (errors.length === 0 && (await users.findByEmail(values.email))) {
       errors.push('An account with that email address already exists.');
     }
 
@@ -147,7 +147,7 @@ function register(app) {
       });
     }
 
-    const user = users.create({
+    const user = await users.create({
       fullName: values.fullName,
       email: values.email,
       password,
@@ -156,15 +156,15 @@ function register(app) {
       role: 'student',
     });
 
-    req.regenerateSession({ userId: user.id });
+    await req.regenerateSession({ userId: user.id });
     setFlash(req, 'success', `Welcome, ${user.full_name}. Your account is ready.`);
     return res.redirect('/dashboard');
   });
 
   /* ----------------------------------------------------------- logout -- */
 
-  app.post('/logout', (req, res) => {
-    req.session.destroy();
+  app.post('/logout', async (req, res) => {
+    await req.session.destroy();
     return res.redirect('/login');
   });
 
@@ -178,7 +178,7 @@ function register(app) {
   app.get('/account/category', (req, res) => {
     if (!req.user) return res.redirect('/login');
     if (req.user.role === 'admin') return res.redirect('/admin');
-    res.render('auth/choose-category', {
+    return res.render('auth/choose-category', {
       title: req.user.category ? 'Change exam level' : 'Choose your exam',
       categories: users.CATEGORIES,
       isFirstTime: !req.user.category,
@@ -186,7 +186,7 @@ function register(app) {
     });
   });
 
-  app.post('/account/category', (req, res) => {
+  app.post('/account/category', async (req, res) => {
     if (!req.user) return res.redirect('/login');
     if (req.user.role === 'admin') return res.redirect('/admin');
 
@@ -200,7 +200,7 @@ function register(app) {
       });
     }
 
-    users.setCategory(req.user.id, category);
+    await users.setCategory(req.user.id, category);
     setFlash(req, 'success', `You're all set up for ${category}.`);
     return res.redirect('/dashboard');
   });
@@ -209,10 +209,10 @@ function register(app) {
 
   app.get('/account', (req, res) => {
     if (!req.user) return res.redirect('/login');
-    res.render('auth/account', { title: 'My account', errors: [] });
+    return res.render('auth/account', { title: 'My account', errors: [] });
   });
 
-  app.post('/account/password', (req, res) => {
+  app.post('/account/password', async (req, res) => {
     if (!req.user) return res.redirect('/login');
 
     const current = String(req.body.currentPassword || '');
@@ -220,7 +220,7 @@ function register(app) {
     const confirm = String(req.body.confirmPassword || '');
 
     const errors = [];
-    if (!users.authenticate(req.user.email, current)) errors.push('Your current password is not correct.');
+    if (!(await users.authenticate(req.user.email, current))) errors.push('Your current password is not correct.');
     const strength = checkPasswordStrength(next);
     if (strength) errors.push(strength);
     if (next !== confirm) errors.push('The two new passwords do not match.');
@@ -229,7 +229,7 @@ function register(app) {
       return res.status(400).render('auth/account', { title: 'My account', errors });
     }
 
-    users.updatePassword(req.user.id, next);
+    await users.updatePassword(req.user.id, next);
     setFlash(req, 'success', 'Your password has been changed.');
     return res.redirect('/account');
   });

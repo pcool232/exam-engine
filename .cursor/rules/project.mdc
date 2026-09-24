@@ -11,15 +11,23 @@ sit them online as multiple-choice practice exams and are marked instantly.
 
 ## Hard constraints — do not break these
 
-1. **Zero runtime dependencies.** `package.json` has an empty `dependencies`
-   block and that is deliberate. Do NOT add Express, better-sqlite3, bcrypt,
-   EJS, multer, dotenv, or any other package. Everything is built on Node's
-   built-in modules. If a task seems to need a library, write it in
-   `src/core/` or `src/lib/` instead, or say why the constraint should change —
-   never quietly `npm install`.
-2. **Node 22.5+ only.** The database is Node's built-in `node:sqlite`
-   (`DatabaseSync`), not a native driver. `src/db.js` exits with a friendly
-   message on older versions; keep that check.
+1. **One runtime dependency, on purpose: `pg`.** This app deploys to Vercel,
+   whose serverless functions have no persistent local disk, so the database
+   is PostgreSQL (Supabase in production) via `pg` (node-postgres) rather
+   than a local SQLite file. That is the one package allowed. Do NOT add
+   Express, an ORM, bcrypt, EJS, multer, dotenv, or anything else. If a task
+   seems to need another library, write it in `src/core/` or `src/lib/`
+   instead, or say why the constraint should change — never quietly
+   `npm install`.
+2. **Node 22.5+.** Every database call is a network round trip to Postgres,
+   so it's async all the way up — `src/db.js`, every `src/models/*.js`
+   function, `src/core/session.js`, and every route handler that touches the
+   database. A route handler that calls a model function must be `async`
+   and `await` it; `res.render`/`res.redirect`/`res.json`/`res.send` calls
+   inside a handler must be `return`ed (not just called) so their promise
+   reaches the dispatch loop's `await handler(...)` — this matters on
+   serverless, where nothing keeps a handler's pending async work running
+   once the function returns.
 3. **No build step.** No bundler, no transpiler, no TypeScript compile, no
    framework. Edit a file, restart (or `npm run dev`), reload the page.
 4. **CommonJS**, not ESM. Use `require` / `module.exports`. Keep
@@ -28,20 +36,23 @@ sit them online as multiple-choice practice exams and are marked instantly.
 ## Layout
 
 ```
-server.js            start-up, middleware pipeline, route registration, error pages
-src/config.js        env config (.env loader written by hand)
-src/db.js            SQLite connection + schema (node:sqlite)
+src/app.js           builds the App: middleware pipeline, route registration, error pages (no listener)
+server.js            local/self-hosted entrypoint: builds the app, calls app.listen()
+api/index.js         Vercel serverless entrypoint: builds the app once per warm instance, calls app.handle() per request
+vercel.json          rewrites every path to api/index
+src/config.js         env config (.env loader written by hand)
+src/db.js            Postgres connection pool + schema/migrations (via `pg`)
 src/seed.js          creates the first administrator and a sample exam
 src/core/            the hand-rolled web framework
   app.js             router, middleware chain, req/res helpers
   body.js            urlencoded / JSON / multipart (file upload) parsing
-  session.js         SQLite-backed sessions + CSRF tokens
+  session.js         Postgres-backed sessions + CSRF tokens (async)
   static.js          static file serving
   template.js        the HTML template engine
 src/lib/password.js  scrypt hashing
 src/lib/parsers/     question importers: text, csv, json, docx, pdf
 src/middleware/auth.js  sign-in state, role guards, CSRF check, flash messages
-src/models/          users, exams (+questions), attempts (+marking)
+src/models/          users, exams (+questions), attempts (+marking) -- every exported function is async
 src/routes/          auth, student, admin handlers
 views/               templates (.html)
 public/              stylesheet + exam-runner script
@@ -70,7 +81,7 @@ call too.
 
 Registered as `app.get(path, ...handlers)` / `app.post(...)` inside
 `src/routes/*.js`, which each export a `register(app)` function called from
-`server.js`. Path params use `:name` (`/admin/exams/:id/edit`).
+`src/app.js`. Path params use `:name` (`/admin/exams/:id/edit`).
 
 Handlers receive `(req, res)` with:
 `req.params`, `req.query`, `req.body`, `req.files`, `req.session`, `req.user`,
@@ -85,8 +96,9 @@ Throw an error with `err.statusCode = 404` (or 403) to render the error page.
 - Every POST form must include `<input type="hidden" name="_csrf" value="{{ csrfToken }}">`.
   `verifyCsrf` rejects POSTs without a matching token. Fetch calls send it as
   the `X-CSRF-Token` header instead.
-- All SQL uses prepared statements with bound parameters. Never build SQL by
-  string concatenation.
+- All SQL uses `?` placeholders with bound parameters (auto-converted to
+  Postgres's `$1, $2, ...` in `src/db.js`). Never build SQL by string
+  concatenation.
 - Passwords go through `src/lib/password.js` (scrypt). Never store or log a
   plain password.
 - Output is escaped by `{{ }}`. Only use `{{{ }}}` for HTML you generated.
@@ -163,12 +175,25 @@ shuffling off for that exam, or the letters stop matching.
 
 ## Running it
 
+Set `DATABASE_URL` to a PostgreSQL connection string first (see
+`.env.example` -- any local Postgres for dev, or a Supabase project).
+
 ```bash
-npm run seed      # create the database + first administrator
+npm install       # pulls in `pg`
+npm run seed      # create the schema + first administrator
 npm start         # http://localhost:3000
 npm run dev       # auto-restart on file changes
-npm run reset-db  # wipe everything and re-seed
+npm run reset-db  # drop every table and re-seed
 ```
 
 There is no test runner in the repo. When you change marking, parsing or
 auth, exercise the change by running the server and walking the flow.
+
+## Deploying to Vercel
+
+`api/index.js` is the serverless entrypoint (built from `src/app.js`,
+shared with `server.js`); `vercel.json` rewrites every path to it. Set
+`DATABASE_URL` in the Vercel project's environment variables to Supabase's
+*pooled* connection string (port 6543, PgBouncer) -- not the direct one on
+port 5432 -- since many short-lived function instances can each open their
+own connection pool.

@@ -2,55 +2,16 @@
 /**
  * Creates the administrator account and (on a fresh database) a demo exam.
  *   npm run seed            - create the admin if it does not exist
- *   npm run reset-db        - delete everything and start again
+ *   npm run reset-db        - drop every table and start again
  */
 
-process.removeAllListeners('warning');
-process.on('warning', (warning) => {
-  if (warning.name === 'ExperimentalWarning' && /SQLite/i.test(warning.message)) return;
-  console.warn(warning.stack || warning.message);
-});
-
-const fs = require('node:fs');
 const config = require('./config');
-
-const reset = process.argv.includes('--reset') || process.argv.includes('--force');
-
-if (reset && fs.existsSync(config.databaseFile)) {
-  for (const suffix of ['', '-wal', '-shm']) {
-    const file = `${config.databaseFile}${suffix}`;
-    if (fs.existsSync(file)) fs.unlinkSync(file);
-  }
-  console.log('Existing database removed.');
-}
-
-const { getDb, closeDb } = require('./db');
+const { getDb, run, closeDb } = require('./db');
 const users = require('./models/users');
 const exams = require('./models/exams');
 const { parseQuestions } = require('./lib/parsers');
 
-getDb();
-
-/* ------------------------------------------------------------- admin -- */
-
-let admin = users.findByEmail(config.seedAdminEmail);
-
-if (admin) {
-  console.log(`Administrator already exists: ${admin.email}`);
-} else {
-  admin = users.create({
-    fullName: config.seedAdminName,
-    email: config.seedAdminEmail,
-    password: config.seedAdminPassword,
-    role: 'admin',
-  });
-  console.log('\nAdministrator account created');
-  console.log(`   email:    ${admin.email}`);
-  console.log(`   password: ${config.seedAdminPassword}`);
-  console.log('   Change this password after your first sign-in.\n');
-}
-
-/* -------------------------------------------------------- demo exam -- */
+const reset = process.argv.includes('--reset') || process.argv.includes('--force');
 
 const DEMO_PAPER = `
 1. Which planet in our solar system is known as the Red Planet?
@@ -118,32 +79,69 @@ Answer: A
 Explanation: The CPU carries out the instructions of a computer program.
 `;
 
-const existingDemo = exams.listExams().find((exam) => exam.title === 'General Knowledge - Sample Paper');
+async function main() {
+  if (reset) {
+    // Postgres, not a local file -- "resetting" means dropping every table
+    // this app owns and letting getDb() below recreate the schema fresh.
+    await run('DROP TABLE IF EXISTS answers, attempts, options, questions, exams, users, sessions CASCADE');
+    console.log('Existing tables dropped.');
+  }
 
-if (existingDemo) {
-  console.log('Sample exam already present - leaving it alone.');
-} else {
-  const exam = exams.createExam({
-    title: 'General Knowledge - Sample Paper',
-    examCode: 'DEMO-101',
-    subject: 'General Knowledge',
-    year: 'Sample',
-    description: 'A short demonstration paper so you can see how the exam runner and marking work.',
-    durationMinutes: 10,
-    passMark: 50,
-    questionsPerAttempt: 0,
-    shuffleQuestions: true,
-    shuffleOptions: true,
-    showAnswers: true,
-    isPublished: true,
-  }, admin.id);
+  await getDb();
 
-  const { questions, issues } = parseQuestions(DEMO_PAPER, { format: 'text' });
-  const saved = exams.addQuestionsBulk(exam.id, questions);
+  /* ----------------------------------------------------------- admin -- */
 
-  console.log(`Sample exam created with ${saved} questions.`);
-  if (issues.length > 0) console.log('   (parser notes:', issues.length, 'skipped blocks)');
+  let admin = await users.findByEmail(config.seedAdminEmail);
+
+  if (admin) {
+    console.log(`Administrator already exists: ${admin.email}`);
+  } else {
+    admin = await users.create({
+      fullName: config.seedAdminName,
+      email: config.seedAdminEmail,
+      password: config.seedAdminPassword,
+      role: 'admin',
+    });
+    console.log('\nAdministrator account created');
+    console.log(`   email:    ${admin.email}`);
+    console.log(`   password: ${config.seedAdminPassword}`);
+    console.log('   Change this password after your first sign-in.\n');
+  }
+
+  /* ------------------------------------------------------- demo exam -- */
+
+  const existingDemo = (await exams.listExams()).find((exam) => exam.title === 'General Knowledge - Sample Paper');
+
+  if (existingDemo) {
+    console.log('Sample exam already present - leaving it alone.');
+  } else {
+    const exam = await exams.createExam({
+      title: 'General Knowledge - Sample Paper',
+      examCode: 'DEMO-101',
+      subject: 'General Knowledge',
+      year: 'Sample',
+      description: 'A short demonstration paper so you can see how the exam runner and marking work.',
+      durationMinutes: 10,
+      passMark: 50,
+      questionsPerAttempt: 0,
+      shuffleQuestions: true,
+      shuffleOptions: true,
+      showAnswers: true,
+      isPublished: true,
+    }, admin.id);
+
+    const { questions, issues } = parseQuestions(DEMO_PAPER, { format: 'text' });
+    const saved = await exams.addQuestionsBulk(exam.id, questions);
+
+    console.log(`Sample exam created with ${saved} questions.`);
+    if (issues.length > 0) console.log('   (parser notes:', issues.length, 'skipped blocks)');
+  }
+
+  await closeDb();
+  console.log('\nDone. Start the server with:  npm start\n');
 }
 
-closeDb();
-console.log('\nDone. Start the server with:  npm start\n');
+main().catch((err) => {
+  console.error('[seed] failed:', err);
+  process.exitCode = 1;
+});

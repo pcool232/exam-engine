@@ -16,8 +16,8 @@ function notFound(message = 'Not found') {
   return err;
 }
 
-function getExamOr404(id) {
-  const exam = exams.findExam(id);
+async function getExamOr404(id) {
+  const exam = await exams.findExam(id);
   if (!exam) throw notFound('That exam no longer exists.');
   return exam;
 }
@@ -62,28 +62,34 @@ function examFormValues(body) {
 function register(app) {
   /* --------------------------------------------------------- dashboard -- */
 
-  app.get('/admin', requireAdmin, (req, res) => {
-    res.render('admin/dashboard', {
+  app.get('/admin', requireAdmin, async (req, res) => {
+    const [attemptStats, userCounts, recentAttempts, examList] = await Promise.all([
+      attempts.statistics(),
+      users.countAll(),
+      attempts.listAllAttempts({ limit: 10 }),
+      exams.listExams(),
+    ]);
+    return res.render('admin/dashboard', {
       title: 'Administration',
-      stats: { ...attempts.statistics(), ...users.countAll() },
-      recentAttempts: attempts.listAllAttempts({ limit: 10 }),
-      exams: exams.listExams().slice(0, 8),
+      stats: { ...attemptStats, ...userCounts },
+      recentAttempts,
+      exams: examList.slice(0, 8),
     });
   });
 
   /* ------------------------------------------------------------- exams -- */
 
-  app.get('/admin/exams', requireAdmin, (req, res) => {
-    let all = exams.listExams({ search: req.query.q || '' });
+  app.get('/admin/exams', requireAdmin, async (req, res) => {
+    let all = await exams.listExams({ search: req.query.q || '' });
     const wanted = req.query.subject ? exams.subjectKey(req.query.subject) : null;
     if (wanted) all = all.filter((exam) => exams.subjectKey(exam.subject) === wanted);
     const selectedCategory = users.cleanCategory(req.query.category) || '';
     if (selectedCategory) all = all.filter((exam) => exam.category === selectedCategory);
 
-    res.render('admin/exams', {
+    return res.render('admin/exams', {
       title: 'Exams',
       exams: all,
-      subjects: exams.subjectsInUse(),
+      subjects: await exams.subjectsInUse(),
       selectedSubject: req.query.subject || '',
       categories: exams.CATEGORIES,
       selectedCategory,
@@ -91,9 +97,9 @@ function register(app) {
     });
   });
 
-  app.get('/admin/exams/new', requireAdmin, (req, res) => {
-    res.render('admin/exam-form', {
-      subjects: exams.subjectsInUse(),
+  app.get('/admin/exams/new', requireAdmin, async (req, res) => {
+    return res.render('admin/exam-form', {
+      subjects: await exams.subjectsInUse(),
       categories: exams.CATEGORIES,
       title: 'New exam',
       exam: {
@@ -106,7 +112,7 @@ function register(app) {
     });
   });
 
-  app.post('/admin/exams/new', requireAdmin, (req, res) => {
+  app.post('/admin/exams/new', requireAdmin, async (req, res) => {
     const values = examFormValues(req.body);
     const errors = [];
     if (!String(values.title || '').trim()) errors.push('The exam needs a title.');
@@ -114,7 +120,7 @@ function register(app) {
 
     if (errors.length > 0) {
       return res.status(400).render('admin/exam-form', {
-        subjects: exams.subjectsInUse(),
+        subjects: await exams.subjectsInUse(),
         categories: exams.CATEGORIES,
         title: 'New exam',
         exam: {
@@ -132,42 +138,47 @@ function register(app) {
       });
     }
 
-    const exam = exams.createExam(values, req.user.id);
+    const exam = await exams.createExam(values, req.user.id);
     setFlash(req, 'success', 'Exam created. Now add some questions.');
     return res.redirect(`/admin/exams/${exam.id}`);
   });
 
-  app.get('/admin/exams/:id', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
-    res.render('admin/exam-detail', {
+  app.get('/admin/exams/:id', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
+    const [questions, performance, attemptRows] = await Promise.all([
+      exams.listQuestions(exam.id),
+      attempts.questionPerformance(exam.id),
+      attempts.listAllAttempts({ examId: exam.id, limit: 1 }),
+    ]);
+    return res.render('admin/exam-detail', {
       title: exam.title,
       exam,
-      questions: exams.listQuestions(exam.id),
-      performance: attempts.questionPerformance(exam.id),
-      attemptCount: attempts.listAllAttempts({ examId: exam.id, limit: 1 }).length,
+      questions,
+      performance,
+      attemptCount: attemptRows.length,
     });
   });
 
-  app.get('/admin/exams/:id/edit', requireAdmin, (req, res) => {
-    res.render('admin/exam-form', {
-      subjects: exams.subjectsInUse(),
+  app.get('/admin/exams/:id/edit', requireAdmin, async (req, res) => {
+    return res.render('admin/exam-form', {
+      subjects: await exams.subjectsInUse(),
       categories: exams.CATEGORIES,
       title: 'Edit exam',
-      exam: getExamOr404(req.params.id),
+      exam: await getExamOr404(req.params.id),
       isNew: false,
       errors: [],
     });
   });
 
-  app.post('/admin/exams/:id/edit', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
+  app.post('/admin/exams/:id/edit', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
     const values = examFormValues(req.body);
     const errors = [];
     if (!String(values.title || '').trim()) errors.push('The exam needs a title.');
     if (!users.cleanCategory(values.category)) errors.push('Choose which exam level this paper is for (PSLE, JC or BGCSE).');
     if (errors.length > 0) {
       return res.status(400).render('admin/exam-form', {
-        subjects: exams.subjectsInUse(),
+        subjects: await exams.subjectsInUse(),
         categories: exams.CATEGORIES,
         title: 'Edit exam',
         exam: { ...exam, ...values, exam_code: values.examCode, is_published: exam.is_published },
@@ -175,39 +186,39 @@ function register(app) {
         errors,
       });
     }
-    exams.updateExam(exam.id, values);
+    await exams.updateExam(exam.id, values);
     setFlash(req, 'success', 'Exam settings saved.');
     return res.redirect(`/admin/exams/${exam.id}`);
   });
 
-  app.post('/admin/exams/:id/publish', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
+  app.post('/admin/exams/:id/publish', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
     const publish = String(req.body.publish) === '1';
 
-    if (publish && exams.countQuestions(exam.id) === 0) {
+    if (publish && (await exams.countQuestions(exam.id)) === 0) {
       setFlash(req, 'error', 'Add at least one question before publishing this exam.');
       return res.redirect(`/admin/exams/${exam.id}`);
     }
 
-    exams.setPublished(exam.id, publish);
+    await exams.setPublished(exam.id, publish);
     setFlash(req, 'success', publish
       ? 'The exam is now live for students.'
       : 'The exam has been hidden from students.');
     return res.redirect(req.body.back === 'list' ? '/admin/exams' : `/admin/exams/${exam.id}`);
   });
 
-  app.post('/admin/exams/:id/delete', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
-    exams.deleteExam(exam.id);
+  app.post('/admin/exams/:id/delete', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
+    await exams.deleteExam(exam.id);
     setFlash(req, 'success', `"${exam.title}" and all of its questions were deleted.`);
     return res.redirect('/admin/exams');
   });
 
   /* --------------------------------------------------------- questions -- */
 
-  app.get('/admin/exams/:id/questions/new', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
-    res.render('admin/question-form', {
+  app.get('/admin/exams/:id/questions/new', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
+    return res.render('admin/question-form', {
       title: 'Add question',
       exam,
       question: {
@@ -223,8 +234,8 @@ function register(app) {
     });
   });
 
-  app.post('/admin/exams/:id/questions/new', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
+  app.post('/admin/exams/:id/questions/new', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
     const options = readOptionsFromForm(req.body);
     const text = String(req.body.questionText || '').trim();
 
@@ -253,7 +264,7 @@ function register(app) {
     }
 
     const correctCount = options.filter((o) => o.isCorrect).length;
-    exams.addQuestion(exam.id, {
+    await exams.addQuestion(exam.id, {
       text,
       type: correctCount > 1 ? 'multiple' : (req.body.questionType === 'multiple' ? 'multiple' : 'single'),
       image: req.body.image,
@@ -268,19 +279,19 @@ function register(app) {
       : `/admin/exams/${exam.id}`);
   });
 
-  app.get('/admin/questions/:qid/edit', requireAdmin, (req, res) => {
-    const question = exams.findQuestion(req.params.qid);
+  app.get('/admin/questions/:qid/edit', requireAdmin, async (req, res) => {
+    const question = await exams.findQuestion(req.params.qid);
     if (!question) throw notFound('Question not found.');
-    res.render('admin/question-form', {
+    return res.render('admin/question-form', {
       title: 'Edit question',
-      exam: getExamOr404(question.exam_id),
+      exam: await getExamOr404(question.exam_id),
       question,
       errors: [],
     });
   });
 
-  app.post('/admin/questions/:qid/edit', requireAdmin, (req, res) => {
-    const existing = exams.findQuestion(req.params.qid);
+  app.post('/admin/questions/:qid/edit', requireAdmin, async (req, res) => {
+    const existing = await exams.findQuestion(req.params.qid);
     if (!existing) throw notFound('Question not found.');
 
     const options = readOptionsFromForm(req.body);
@@ -294,14 +305,14 @@ function register(app) {
     if (errors.length > 0) {
       return res.status(400).render('admin/question-form', {
         title: 'Edit question',
-        exam: getExamOr404(existing.exam_id),
+        exam: await getExamOr404(existing.exam_id),
         question: { ...existing, question_text: text },
         errors,
       });
     }
 
     const correctCount = options.filter((o) => o.isCorrect).length;
-    exams.updateQuestion(existing.id, {
+    await exams.updateQuestion(existing.id, {
       text,
       type: correctCount > 1 ? 'multiple' : (req.body.questionType === 'multiple' ? 'multiple' : 'single'),
       image: req.body.image,
@@ -314,18 +325,18 @@ function register(app) {
     return res.redirect(`/admin/exams/${existing.exam_id}`);
   });
 
-  app.post('/admin/questions/:qid/delete', requireAdmin, (req, res) => {
-    const question = exams.findQuestion(req.params.qid);
+  app.post('/admin/questions/:qid/delete', requireAdmin, async (req, res) => {
+    const question = await exams.findQuestion(req.params.qid);
     if (!question) throw notFound('Question not found.');
-    exams.deleteQuestion(question.id);
+    await exams.deleteQuestion(question.id);
     setFlash(req, 'success', 'Question deleted.');
     return res.redirect(`/admin/exams/${question.exam_id}`);
   });
 
-  app.post('/admin/questions/:qid/move', requireAdmin, (req, res) => {
-    const question = exams.findQuestion(req.params.qid);
+  app.post('/admin/questions/:qid/move', requireAdmin, async (req, res) => {
+    const question = await exams.findQuestion(req.params.qid);
     if (!question) throw notFound('Question not found.');
-    exams.moveQuestion(question.id, req.body.direction === 'up' ? 'up' : 'down');
+    await exams.moveQuestion(question.id, req.body.direction === 'up' ? 'up' : 'down');
     return res.redirect(`/admin/exams/${question.exam_id}#q${question.id}`);
   });
 
@@ -345,8 +356,8 @@ function register(app) {
     };
   }
 
-  app.get('/admin/import', requireAdmin, (req, res) => {
-    res.render('admin/import', {
+  app.get('/admin/import', requireAdmin, async (req, res) => {
+    return res.render('admin/import', {
       title: 'Import an exam file',
       exam: null,
       errors: [],
@@ -354,7 +365,7 @@ function register(app) {
     });
   });
 
-  app.post('/admin/import', requireAdmin, (req, res) => {
+  app.post('/admin/import', requireAdmin, async (req, res) => {
     const submission = readSubmission(req);
 
     const fail = (errors, text) => res.status(400).render('admin/import', {
@@ -402,7 +413,7 @@ function register(app) {
     return res.redirect(`/admin/import/preview?t=${token}`);
   });
 
-  app.get('/admin/import/preview', requireAdmin, (req, res) => {
+  app.get('/admin/import/preview', requireAdmin, async (req, res) => {
     const pending = req.session.pendingImport;
     if (!pending || pending.token !== req.query.t || pending.examId !== null) {
       setFlash(req, 'error', 'That import has expired. Please upload the file again.');
@@ -416,8 +427,8 @@ function register(app) {
     const hasPictureOptions = pending.questions.some((question) =>
       question.options.some((option) => /^shown at [a-j]$/i.test(String(option.text).trim())));
 
-    res.render('admin/import-preview', {
-      subjects: exams.subjectsInUse(),
+    return res.render('admin/import-preview', {
+      subjects: await exams.subjectsInUse(),
       categories: exams.CATEGORIES,
       title: 'Review the exam',
       exam: null,
@@ -443,7 +454,7 @@ function register(app) {
     });
   });
 
-  app.post('/admin/import/confirm', requireAdmin, (req, res) => {
+  app.post('/admin/import/confirm', requireAdmin, async (req, res) => {
     const pending = req.session.pendingImport;
     if (!pending || pending.token !== req.body.token || pending.examId !== null) {
       setFlash(req, 'error', 'That import has expired. Please upload the file again.');
@@ -466,8 +477,8 @@ function register(app) {
       return res.redirect(`/admin/import/preview?t=${pending.token}`);
     }
 
-    const exam = exams.createExam(examFormValues(req.body), req.user.id);
-    const saved = exams.addQuestionsBulk(exam.id, selected);
+    const exam = await exams.createExam(examFormValues(req.body), req.user.id);
+    const saved = await exams.addQuestionsBulk(exam.id, selected);
 
     delete req.session.pendingImport;
     req.session.save();
@@ -480,9 +491,9 @@ function register(app) {
 
   /* ------------------------------ import into an exam that already exists -- */
 
-  app.get('/admin/exams/:id/import', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
-    res.render('admin/import', {
+  app.get('/admin/exams/:id/import', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
+    return res.render('admin/import', {
       title: `Import questions - ${exam.title}`,
       exam,
       errors: [],
@@ -490,8 +501,8 @@ function register(app) {
     });
   });
 
-  app.post('/admin/exams/:id/import', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
+  app.post('/admin/exams/:id/import', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
     const submission = readSubmission(req);
     const { pastedText, filename } = submission;
 
@@ -537,8 +548,8 @@ function register(app) {
     return res.redirect(`/admin/exams/${exam.id}/import/preview?t=${token}`);
   });
 
-  app.get('/admin/exams/:id/import/preview', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
+  app.get('/admin/exams/:id/import/preview', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
     const pending = req.session.pendingImport;
 
     if (!pending || pending.token !== req.query.t || pending.examId !== exam.id) {
@@ -546,8 +557,8 @@ function register(app) {
       return res.redirect(`/admin/exams/${exam.id}/import`);
     }
 
-    res.render('admin/import-preview', {
-      subjects: exams.subjectsInUse(),
+    return res.render('admin/import-preview', {
+      subjects: await exams.subjectsInUse(),
       title: `Review import - ${exam.title}`,
       exam,
       pending,
@@ -559,8 +570,8 @@ function register(app) {
     });
   });
 
-  app.post('/admin/exams/:id/import/confirm', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
+  app.post('/admin/exams/:id/import/confirm', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
     const pending = req.session.pendingImport;
 
     if (!pending || pending.token !== req.body.token || pending.examId !== exam.id) {
@@ -578,10 +589,10 @@ function register(app) {
     }
 
     if (String(req.body.replaceExisting) === '1') {
-      exams.deleteAllQuestions(exam.id);
+      await exams.deleteAllQuestions(exam.id);
     }
 
-    const saved = exams.addQuestionsBulk(exam.id, selected);
+    const saved = await exams.addQuestionsBulk(exam.id, selected);
 
     delete req.session.pendingImport;
     req.session.save();
@@ -592,17 +603,21 @@ function register(app) {
 
   /* ---------------------------------------------------------- students -- */
 
-  app.get('/admin/students', requireAdmin, (req, res) => {
-    res.render('admin/students', {
+  app.get('/admin/students', requireAdmin, async (req, res) => {
+    const [students, admins] = await Promise.all([
+      users.listStudents({ search: req.query.q || '' }),
+      users.listAdmins(),
+    ]);
+    return res.render('admin/students', {
       title: 'Students',
-      students: users.listStudents({ search: req.query.q || '' }),
-      admins: users.listAdmins(),
+      students,
+      admins,
       search: req.query.q || '',
       errors: [],
     });
   });
 
-  app.post('/admin/students/new', requireAdmin, (req, res) => {
+  app.post('/admin/students/new', requireAdmin, async (req, res) => {
     const fullName = String(req.body.fullName || '').trim();
     const email = String(req.body.email || '').trim();
     const password = String(req.body.password || '');
@@ -613,14 +628,14 @@ function register(app) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.push('Please enter a valid email address.');
     const strength = checkPasswordStrength(password);
     if (strength) errors.push(strength);
-    if (errors.length === 0 && users.findByEmail(email)) errors.push('That email address is already in use.');
+    if (errors.length === 0 && (await users.findByEmail(email))) errors.push('That email address is already in use.');
 
     if (errors.length > 0) {
       setFlash(req, 'error', errors.join(' '));
       return res.redirect('/admin/students');
     }
 
-    users.create({
+    await users.create({
       fullName, email, password, role,
       studentNumber: String(req.body.studentNumber || '').trim() || null,
     });
@@ -628,8 +643,8 @@ function register(app) {
     return res.redirect('/admin/students');
   });
 
-  app.post('/admin/students/:uid/reset-password', requireAdmin, (req, res) => {
-    const user = users.findById(req.params.uid);
+  app.post('/admin/students/:uid/reset-password', requireAdmin, async (req, res) => {
+    const user = await users.findById(req.params.uid);
     if (!user) throw notFound('User not found.');
 
     const password = String(req.body.password || '');
@@ -637,61 +652,65 @@ function register(app) {
     if (strength) {
       setFlash(req, 'error', strength);
     } else {
-      users.updatePassword(user.id, password);
+      await users.updatePassword(user.id, password);
       setFlash(req, 'success', `Password reset for ${user.full_name}.`);
     }
     return res.redirect('/admin/students');
   });
 
-  app.post('/admin/students/:uid/toggle', requireAdmin, (req, res) => {
-    const user = users.findById(req.params.uid);
+  app.post('/admin/students/:uid/toggle', requireAdmin, async (req, res) => {
+    const user = await users.findById(req.params.uid);
     if (!user) throw notFound('User not found.');
     if (user.id === req.user.id) {
       setFlash(req, 'error', 'You cannot deactivate your own account.');
       return res.redirect('/admin/students');
     }
-    users.setActive(user.id, !user.is_active);
+    await users.setActive(user.id, !user.is_active);
     setFlash(req, 'success', `${user.full_name} was ${user.is_active ? 'deactivated' : 'reactivated'}.`);
     return res.redirect('/admin/students');
   });
 
-  app.post('/admin/students/:uid/delete', requireAdmin, (req, res) => {
-    const user = users.findById(req.params.uid);
+  app.post('/admin/students/:uid/delete', requireAdmin, async (req, res) => {
+    const user = await users.findById(req.params.uid);
     if (!user) throw notFound('User not found.');
     if (user.id === req.user.id) {
       setFlash(req, 'error', 'You cannot delete your own account.');
       return res.redirect('/admin/students');
     }
-    users.remove(user.id);
+    await users.remove(user.id);
     setFlash(req, 'success', `${user.full_name} and their results were removed.`);
     return res.redirect('/admin/students');
   });
 
   /* ----------------------------------------------------------- results -- */
 
-  app.get('/admin/results', requireAdmin, (req, res) => {
+  app.get('/admin/results', requireAdmin, async (req, res) => {
     const examId = req.query.exam ? Number(req.query.exam) : null;
     const userId = req.query.student ? Number(req.query.student) : null;
-    const rows = attempts.listAllAttempts({ examId, userId, limit: 500 });
+    const [rows, examList, student] = await Promise.all([
+      attempts.listAllAttempts({ examId, userId, limit: 500 }),
+      exams.listExams(),
+      userId ? users.findById(userId) : null,
+    ]);
 
     const query = new URLSearchParams();
     if (examId) query.set('exam', String(examId));
     if (userId) query.set('student', String(userId));
 
-    res.render('admin/results', {
+    return res.render('admin/results', {
       title: 'Results',
       attempts: rows,
-      exams: exams.listExams(),
+      exams: examList,
       selectedExam: examId,
-      student: userId ? users.findById(userId) : null,
+      student,
       csvUrl: `/admin/results.csv${query.size ? `?${query}` : ''}`,
     });
   });
 
-  app.get('/admin/results.csv', requireAdmin, (req, res) => {
+  app.get('/admin/results.csv', requireAdmin, async (req, res) => {
     const examId = req.query.exam ? Number(req.query.exam) : null;
     const userId = req.query.student ? Number(req.query.student) : null;
-    const rows = attempts.listAllAttempts({ examId, userId, limit: 10000 });
+    const rows = await attempts.listAllAttempts({ examId, userId, limit: 10000 });
 
     const escape = (value) => {
       const text = value === null || value === undefined ? '' : String(value);
@@ -712,9 +731,10 @@ function register(app) {
 
   /* -------------------------------------------------------- export json -- */
 
-  app.get('/admin/exams/:id/export.json', requireAdmin, (req, res) => {
-    const exam = getExamOr404(req.params.id);
-    const questions = exams.listQuestions(exam.id).map((question) => ({
+  app.get('/admin/exams/:id/export.json', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
+    const rawQuestions = await exams.listQuestions(exam.id);
+    const questions = rawQuestions.map((question) => ({
       question: question.question_text,
       type: question.question_type,
       marks: question.marks,
