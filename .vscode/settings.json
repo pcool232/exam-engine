@@ -1,0 +1,11 @@
+{
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.associations": { "views/**/*.html": "html" },
+  "emmet.includeLanguages": { "html": "html" },
+  "search.exclude": { "**/node_modules": true, "**/data": true },
+  "files.exclude": { "**/data/*.db*": true }
+}
