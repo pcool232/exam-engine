@@ -12,7 +12,7 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/login">
+    <form method="post" action="/login" data-guard-submit>
       <input type="hidden" name="_csrf" value="{{ csrfToken }}">
       <input type="hidden" name="next" value="{{ nextUrl }}">
 
@@ -28,7 +28,7 @@
         <a class="small" href="/forgot-password">Forgot your password?</a>
       </div>
 
-      <button type="submit" class="button button-block">Sign in</button>
+      <button type="submit" class="button button-block" data-busy-text="Signing in…">Sign in</button>
     </form>
 
     {% include "partials/google-signin.html" %}
@@ -36,3 +36,5 @@
 
   <p class="auth-alt">No account yet? <a href="/register">Create one</a></p>
 </div>
+
+<script src="/static/js/auth-forms.js" defer></script>

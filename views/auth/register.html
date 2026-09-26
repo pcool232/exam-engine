@@ -12,7 +12,7 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/register">
+    <form method="post" action="/register" data-guard-submit>
       <input type="hidden" name="_csrf" value="{{ csrfToken }}">
 
       <div class="field">
@@ -58,7 +58,7 @@
         <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
       </div>
 
-      <button type="submit" class="button button-block">Create account</button>
+      <button type="submit" class="button button-block" data-busy-text="Creating account…">Create account</button>
     </form>
 
     {% include "partials/google-signin.html" %}
@@ -66,3 +66,5 @@
 
   <p class="auth-alt">Already registered? <a href="/login">Sign in</a></p>
 </div>
+
+<script src="/static/js/auth-forms.js" defer></script>

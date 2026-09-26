@@ -43,7 +43,7 @@
       </div>
     {% endif %}
 
-    <form method="post" action="/account/password">
+    <form method="post" action="/account/password" data-guard-submit>
       <input type="hidden" name="_csrf" value="{{ csrfToken }}">
       <div class="field">
         <label for="currentPassword">Current password</label>
@@ -57,7 +57,9 @@
         <label for="confirmPassword">Confirm new password</label>
         <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="new-password">
       </div>
-      <button type="submit" class="button">Change password</button>
+      <button type="submit" class="button" data-busy-text="Changing…">Change password</button>
     </form>
   </div>
 </div>
+
+<script src="/static/js/auth-forms.js" defer></script>
