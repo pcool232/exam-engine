@@ -87,6 +87,7 @@ function sessionMiddleware({ ttlSeconds = DEFAULT_TTL_SECONDS, secure = false } 
     }
 
     let dirty = isNew;
+    let destroyed = false;
     const original = JSON.stringify(data);
 
     req.sessionId = id;
@@ -98,6 +99,13 @@ function sessionMiddleware({ ttlSeconds = DEFAULT_TTL_SECONDS, secure = false } 
       await store.destroy(id);
       res.clearCookie(COOKIE_NAME, { secure });
       dirty = false;
+      // persist() below must not undo this clear. Without this flag, the
+      // fresh (empty-but-not-identical) session object assigned next would
+      // still look "changed" to persist()'s own dirty check, so it would
+      // write a brand new session row and re-issue a Set-Cookie right after
+      // the one above that just cleared it -- silently leaving the browser
+      // holding a live session cookie after logout instead of none at all.
+      destroyed = true;
       req.session = { csrfToken: crypto.randomBytes(24).toString('base64url') };
     };
 
@@ -112,6 +120,7 @@ function sessionMiddleware({ ttlSeconds = DEFAULT_TTL_SECONDS, secure = false } 
       }
       Object.assign(req.session, carryOver, { csrfToken });
       dirty = true;
+      destroyed = false;
       return req.session;
     };
 
@@ -123,6 +132,7 @@ function sessionMiddleware({ ttlSeconds = DEFAULT_TTL_SECONDS, secure = false } 
     });
 
     const persist = async () => {
+      if (destroyed) return;
       const serialisable = {};
       for (const [key, value] of Object.entries(req.session)) {
         if (typeof value !== 'function') serialisable[key] = value;

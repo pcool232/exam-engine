@@ -92,13 +92,20 @@ class App {
     res.clearCookie = (name, options = {}) =>
       res.setCookie(name, '', { ...options, maxAge: 0 });
 
+    // res.end may be wrapped by middleware (the session store persists
+    // asynchronously before the real flush -- see core/session.js) to return
+    // a promise instead of `res` directly. res.send/json/redirect/render
+    // return whatever res.end() gives back, and route handlers `return`
+    // theirs, so that promise chains all the way up to the single
+    // `await handler(...)` in the dispatch loop below -- which matters on a
+    // serverless platform where nothing guarantees pending async work keeps
+    // running once a handler function returns.
     res.send = (body, contentType = 'text/html; charset=utf-8') => {
       if (res.writableEnded) return res;
       const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf8');
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Length', payload.length);
-      res.end(req.method === 'HEAD' ? undefined : payload);
-      return res;
+      return res.end(req.method === 'HEAD' ? undefined : payload);
     };
 
     res.json = (data, code) => {
@@ -109,8 +116,7 @@ class App {
     res.redirect = (location, code = 302) => {
       res.statusCode = code;
       res.setHeader('Location', location);
-      res.end();
-      return res;
+      return res.end();
     };
 
     res.render = (view, data = {}, layout = 'partials/layout') => {
