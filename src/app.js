@@ -32,6 +32,11 @@ function buildApp() {
     subjectIcon,
     googleClientId: config.googleClientId,
     nextUrl: '', // overridden by /login when it has a "next" target to preserve
+    // Set by a route to a number of seconds to have the layout auto-reload
+    // the page (see partials/layout.html) -- for pages showing live-ish
+    // data (the admin dashboard, results) that an admin would otherwise
+    // have to manually refresh to see change.
+    autoRefreshSeconds: null,
   };
 
   app.setTemplates(new TemplateEngine(config.viewsDir, {

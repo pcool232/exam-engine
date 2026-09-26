@@ -50,24 +50,39 @@ async function startAttempt(userId, exam) {
     ? Date.now() + exam.duration_minutes * 60 * 1000
     : null;
 
-  const result = await run(
-    `INSERT INTO attempts (user_id, exam_id, status, expires_at, question_ids, option_order)
-     VALUES (?, ?, 'in_progress', ?, ?, ?)
-     RETURNING id`,
-    [
-      Number(userId),
-      Number(exam.id),
-      expiresAt,
-      JSON.stringify(selected.map((q) => q.id)),
-      JSON.stringify(optionOrder),
-    ]
-  );
+  try {
+    const result = await run(
+      `INSERT INTO attempts (user_id, exam_id, status, expires_at, question_ids, option_order, pass_mark)
+       VALUES (?, ?, 'in_progress', ?, ?, ?, ?)
+       RETURNING id`,
+      [
+        Number(userId),
+        Number(exam.id),
+        expiresAt,
+        JSON.stringify(selected.map((q) => q.id)),
+        JSON.stringify(optionOrder),
+        exam.pass_mark,
+      ]
+    );
 
-  return findAttempt(result.lastInsertRowid);
+    return findAttempt(result.lastInsertRowid);
+  } catch (err) {
+    // idx_attempts_one_open: another request for this same student+exam won
+    // the race between findOpenAttempt() and this INSERT (e.g. a doubled
+    // click). Hand back whichever attempt actually landed instead of erroring.
+    if (err.code === '23505') {
+      const existing = await findOpenAttempt(userId, exam.id);
+      if (existing) return existing;
+    }
+    throw err;
+  }
 }
 
 async function findAttempt(id) {
-  const attempt = await get('SELECT * FROM attempts WHERE id = ?', [Number(id)]);
+  // See findExam()'s comment in models/exams.js -- same reasoning.
+  const numericId = Number(id);
+  if (!Number.isFinite(numericId)) return null;
+  const attempt = await get('SELECT * FROM attempts WHERE id = ?', [numericId]);
   if (!attempt) return null;
   attempt.questionIds = parseJson(attempt.question_ids, []);
   attempt.optionOrder = parseJson(attempt.option_order, {});
@@ -179,8 +194,13 @@ async function submitAttempt(attempt, responses) {
     rows.push({ questionId: question.id, cleanSelection, isCorrect, awarded });
   }
 
+  // Grade against the pass mark frozen when this attempt started, not
+  // whatever the exam's pass mark happens to be right now -- falls back to
+  // the exam's current value only for attempts started before the pass_mark
+  // column existed.
+  const passMark = attempt.pass_mark ?? exam?.pass_mark ?? 50;
   const percentage = totalMarks > 0 ? Math.round((score / totalMarks) * 1000) / 10 : 0;
-  const passed = percentage >= (exam?.pass_mark ?? 50) ? 1 : 0;
+  const passed = percentage >= passMark ? 1 : 0;
 
   await transaction(async (tx) => {
     for (const row of rows) {
@@ -258,8 +278,11 @@ async function listAttemptsForUser(userId, limit = 50) {
 }
 
 async function listAllAttempts({ examId = null, userId = null, limit = 200 } = {}) {
-  const exam = examId ? Number(examId) : null;
-  const user = userId ? Number(userId) : null;
+  // A bad/non-numeric filter (garbled query string) must fall back to "no
+  // filter" rather than binding NaN to an ::integer parameter, which
+  // Postgres rejects outright.
+  const exam = Number.isFinite(Number(examId)) && examId ? Number(examId) : null;
+  const user = Number.isFinite(Number(userId)) && userId ? Number(userId) : null;
   return all(
     `SELECT a.*, e.title AS exam_title, e.exam_code, u.full_name, u.email, u.student_number
      FROM attempts a
@@ -272,6 +295,12 @@ async function listAllAttempts({ examId = null, userId = null, limit = 200 } = {
      LIMIT ?`,
     [exam, exam, user, user, Number(limit)]
   );
+}
+
+/** How many attempts (any status) exist for an exam -- used to warn an admin before deleting it. */
+async function countForExam(examId) {
+  const row = await get('SELECT COUNT(*) AS n FROM attempts WHERE exam_id = ?', [Number(examId)]);
+  return row.n;
 }
 
 async function abandonAttempt(attemptId) {
@@ -323,5 +352,5 @@ async function questionPerformance(examId) {
 module.exports = {
   startAttempt, findAttempt, findOpenAttempt, getAttemptQuestions, getSavedAnswers,
   saveAnswer, submitAttempt, getAttemptResult, listAttemptsForUser, listAllAttempts,
-  abandonAttempt, statistics, questionPerformance, shuffle,
+  abandonAttempt, statistics, questionPerformance, shuffle, countForExam,
 };

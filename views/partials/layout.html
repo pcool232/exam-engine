@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="/static/css/app.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
 </head>
-<body data-variant="{{ layoutVariant }}">
+<body data-variant="{{ layoutVariant }}" {% if autoRefreshSeconds %}data-auto-refresh="{{ autoRefreshSeconds }}"{% endif %}>
 
 {% if layoutVariant !== 'bare' %}
 <header class="topbar">
@@ -67,6 +67,27 @@
 <footer class="footer">
   <p>{{ appName }} · practise past examination papers</p>
 </footer>
+
+{% if autoRefreshSeconds %}
+<script>
+(function () {
+  // Opt-in per page via `autoRefreshSeconds` in the route's res.render() data
+  // (see src/app.js's default and src/routes/admin.js) -- for pages showing
+  // data that changes while an admin is watching it (live attempt counts,
+  // incoming results), which they'd otherwise have to manually reload to see.
+  var seconds = Number(document.body.dataset.autoRefresh || 0);
+  if (!seconds) return;
+  setInterval(function () {
+    // A reload while the tab is in the background is wasted (the admin
+    // isn't looking at it) and would surprise them -- e.g. resetting scroll
+    // position -- the moment they switch back. Skip it; the next tick after
+    // the tab is visible again will catch up.
+    if (document.hidden) return;
+    window.location.reload();
+  }, seconds * 1000);
+})();
+</script>
+{% endif %}
 
 </body>
 </html>

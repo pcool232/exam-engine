@@ -131,10 +131,8 @@ function register(app) {
     const saved = await attempts.getSavedAnswers(attempt.id);
 
     // Time is up: mark whatever has been saved so far.
-    if (attempt.expires_at && Date.now() > attempt.expires_at) {
-      const responses = new Map();
-      for (const [questionId, selection] of saved.entries()) responses.set(questionId, selection);
-      await attempts.submitAttempt(attempt, responses);
+    if (isExpired(attempt)) {
+      await attempts.submitAttempt(attempt, new Map(saved));
       setFlash(req, 'error', 'Your time ran out, so the paper was submitted automatically.');
       return res.redirect(`/results/${attempt.id}`);
     }
@@ -155,11 +153,33 @@ function register(app) {
     });
   });
 
+  /**
+   * True once an attempt's deadline has passed. The client-side timer in
+   * public/js/attempt.js is what normally triggers auto-submit, but that's
+   * just UX -- a student who keeps the tab open (or blocks/edits that JS)
+   * must not be able to keep saving answers or submit late by calling these
+   * two endpoints directly, so both re-check the deadline server-side too.
+   */
+  function isExpired(attempt) {
+    return Boolean(attempt.expires_at) && Date.now() > attempt.expires_at;
+  }
+
+  /** Force-submits whatever was saved so far, once the deadline has passed. */
+  async function forceSubmitExpired(attempt) {
+    const saved = await attempts.getSavedAnswers(attempt.id);
+    await attempts.submitAttempt(attempt, new Map(saved));
+  }
+
   /** Background save of a single answer (called by the browser as you click). */
   app.post('/attempts/:id/answer', requireStudent, async (req, res) => {
     const attempt = await attempts.findAttempt(req.params.id);
     if (!attempt || attempt.user_id !== req.user.id) return res.json({ ok: false }, 404);
     if (attempt.status !== 'in_progress') return res.json({ ok: false, reason: 'submitted' }, 409);
+
+    if (isExpired(attempt)) {
+      await forceSubmitExpired(attempt);
+      return res.json({ ok: false, reason: 'expired' }, 409);
+    }
 
     const questionId = Number(req.body.questionId);
     if (!attempt.questionIds.includes(questionId)) return res.json({ ok: false }, 400);
@@ -173,6 +193,12 @@ function register(app) {
     const attempt = await attempts.findAttempt(req.params.id);
     if (!attempt || attempt.user_id !== req.user.id) throw notFound('Attempt not found.');
     if (attempt.status === 'submitted') return res.redirect(`/results/${attempt.id}`);
+
+    if (isExpired(attempt)) {
+      await forceSubmitExpired(attempt);
+      setFlash(req, 'error', 'Your time ran out, so the paper was submitted automatically.');
+      return res.redirect(`/results/${attempt.id}`);
+    }
 
     // Start from what was saved in the background, then overlay the posted form.
     const responses = new Map(await attempts.getSavedAnswers(attempt.id));

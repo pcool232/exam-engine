@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -157,6 +157,13 @@ const SCHEMA_STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS idx_options_question  ON options(question_id, position)',
   'CREATE INDEX IF NOT EXISTS idx_attempts_user     ON attempts(user_id, started_at DESC)',
   'CREATE INDEX IF NOT EXISTS idx_attempts_exam     ON attempts(exam_id)',
+  // At most one in-progress attempt per student per exam. Without this, a
+  // double-click on "Start" (two POST /exams/:id/start requests landing
+  // before either INSERT commits) can create two open attempts for the same
+  // pair -- startAttempt() below catches the resulting unique-violation and
+  // hands back the one that won the race instead of erroring.
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_one_open
+     ON attempts(user_id, exam_id) WHERE status = 'in_progress'`,
   'CREATE INDEX IF NOT EXISTS idx_answers_attempt   ON answers(attempt_id)',
   'CREATE INDEX IF NOT EXISTS idx_sessions_expires  ON sessions(expires_at)',
 ];
@@ -175,6 +182,13 @@ const COLUMN_MIGRATIONS = [
   { table: 'exams', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE'))" },
   // "Sign in with Google" -- the account's stable Google user id, once linked.
   { table: 'users', column: 'google_sub', definition: 'TEXT' },
+  // Pass mark frozen at attempt-start time, same reasoning as question_ids/
+  // option_order: without this, an admin editing an exam's pass mark while a
+  // student has it open would grade that in-flight attempt against the new
+  // threshold instead of the one shown when the student started. NULL on
+  // attempts created before this column existed -- submitAttempt() falls
+  // back to the exam's current pass_mark for those.
+  { table: 'attempts', column: 'pass_mark', definition: 'INTEGER' },
 ];
 
 /** Converts this app's `?` placeholders to Postgres's `$1, $2, ...`. */

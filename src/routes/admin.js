@@ -22,6 +22,13 @@ async function getExamOr404(id) {
   return exam;
 }
 
+/** A query-string id filter: a positive integer, or null (no filter/junk input). */
+function parseId(raw) {
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 /** Read the repeating option fields from the question editor form. */
 function readOptionsFromForm(body) {
   const texts = [].concat(body.optionText || []);
@@ -74,6 +81,7 @@ function register(app) {
       stats: { ...attemptStats, ...userCounts },
       recentAttempts,
       exams: examList.slice(0, 8),
+      autoRefreshSeconds: 30,
     });
   });
 
@@ -145,10 +153,11 @@ function register(app) {
 
   app.get('/admin/exams/:id', requireAdmin, async (req, res) => {
     const exam = await getExamOr404(req.params.id);
-    const [questions, performance, attemptRows] = await Promise.all([
+    const [questions, performance, attemptRows, resultCount] = await Promise.all([
       exams.listQuestions(exam.id),
       attempts.questionPerformance(exam.id),
       attempts.listAllAttempts({ examId: exam.id, limit: 1 }),
+      attempts.countForExam(exam.id),
     ]);
     return res.render('admin/exam-detail', {
       title: exam.title,
@@ -156,6 +165,7 @@ function register(app) {
       questions,
       performance,
       attemptCount: attemptRows.length,
+      resultCount,
     });
   });
 
@@ -209,8 +219,11 @@ function register(app) {
 
   app.post('/admin/exams/:id/delete', requireAdmin, async (req, res) => {
     const exam = await getExamOr404(req.params.id);
+    const resultCount = await attempts.countForExam(exam.id);
     await exams.deleteExam(exam.id);
-    setFlash(req, 'success', `"${exam.title}" and all of its questions were deleted.`);
+    setFlash(req, 'success', resultCount > 0
+      ? `"${exam.title}", its questions, and ${resultCount} student attempt${resultCount === 1 ? '' : 's'}/result${resultCount === 1 ? '' : 's'} for it were deleted.`
+      : `"${exam.title}" and all of its questions were deleted.`);
     return res.redirect('/admin/exams');
   });
 
@@ -685,8 +698,8 @@ function register(app) {
   /* ----------------------------------------------------------- results -- */
 
   app.get('/admin/results', requireAdmin, async (req, res) => {
-    const examId = req.query.exam ? Number(req.query.exam) : null;
-    const userId = req.query.student ? Number(req.query.student) : null;
+    const examId = parseId(req.query.exam);
+    const userId = parseId(req.query.student);
     const [rows, examList, student] = await Promise.all([
       attempts.listAllAttempts({ examId, userId, limit: 500 }),
       exams.listExams(),
@@ -704,16 +717,24 @@ function register(app) {
       selectedExam: examId,
       student,
       csvUrl: `/admin/results.csv${query.size ? `?${query}` : ''}`,
+      autoRefreshSeconds: 30,
     });
   });
 
   app.get('/admin/results.csv', requireAdmin, async (req, res) => {
-    const examId = req.query.exam ? Number(req.query.exam) : null;
-    const userId = req.query.student ? Number(req.query.student) : null;
+    const examId = parseId(req.query.exam);
+    const userId = parseId(req.query.student);
     const rows = await attempts.listAllAttempts({ examId, userId, limit: 10000 });
 
     const escape = (value) => {
-      const text = value === null || value === undefined ? '' : String(value);
+      let text = value === null || value === undefined ? '' : String(value);
+      // Excel/Sheets/LibreOffice treat a cell starting with =, +, -, @, tab
+      // or CR as a formula. Student-controlled fields end up in this export
+      // (full_name, student_number are free text at registration), so a
+      // leading formula character is neutralized with a leading apostrophe
+      // -- the standard CSV-injection mitigation -- before the normal
+      // comma/quote/newline quoting below.
+      if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
       return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
 

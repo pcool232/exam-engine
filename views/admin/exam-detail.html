@@ -45,7 +45,11 @@
       </form>
       <a class="button button-secondary button-small" href="/admin/exams/{{ exam.id }}/export.json">Export JSON</a>
       <form method="post" action="/admin/exams/{{ exam.id }}/delete" class="inline-form"
-            onsubmit="return confirm('Delete this exam, all of its questions and all student results for it? This cannot be undone.')">
+            {% if resultCount > 0 %}
+            onsubmit="return confirm('Delete this exam, all of its questions, and {{ resultCount }} student attempt(s)/result(s) for it? This cannot be undone.')"
+            {% else %}
+            onsubmit="return confirm('Delete this exam and all of its questions? This cannot be undone.')"
+            {% endif %}>
         <input type="hidden" name="_csrf" value="{{ csrfToken }}">
         <button type="submit" class="link-button link-danger small">Delete exam</button>
       </form>

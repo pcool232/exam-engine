@@ -74,7 +74,13 @@ async function updateExam(id, data) {
 }
 
 async function findExam(id) {
-  return (await get('SELECT * FROM exams WHERE id = ?', [Number(id)])) || null;
+  // A non-numeric id (bad URL, stale/guessed link) would otherwise reach
+  // Postgres as NaN and come back as an "invalid input syntax for type
+  // integer" error -- a 500 instead of the clean "not found" every caller
+  // already handles.
+  const numericId = Number(id);
+  if (!Number.isFinite(numericId)) return null;
+  return (await get('SELECT * FROM exams WHERE id = ?', [numericId])) || null;
 }
 
 async function deleteExam(id) {
