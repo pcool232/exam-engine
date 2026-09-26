@@ -345,20 +345,9 @@ function register(app) {
 
   /* -------------------------------------------------------- password -- */
 
-  app.get('/account', async (req, res) => {
+  app.get('/account', (req, res) => {
     if (!req.user) return res.redirect('/login');
-
-    let messages = [];
-    if (req.user.role === 'student') {
-      // Fetched (with their original is_read flags, so this view can still
-      // show which ones were unread) before marking them read, so opening
-      // the page is what clears the badge in the topbar.
-      messages = await inbox.listForUser(req.user.id);
-      await inbox.markAllRead(req.user.id);
-      res.locals.inboxUnreadCount = 0; // clears the topbar badge for this same response
-    }
-
-    return res.render('auth/account', { title: 'My account', errors: [], messages });
+    return res.render('auth/account', { title: 'My account', errors: [] });
   });
 
   app.post('/account/password', async (req, res) => {

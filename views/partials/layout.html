@@ -27,7 +27,7 @@
         {% else %}
           <a href="/dashboard">Exams</a>
           <a href="/history">My results</a>
-          <a href="/account#inbox">Inbox{% if inboxUnreadCount > 0 %} <span class="badge badge-notify">{{ inboxUnreadCount }}</span>{% endif %}</a>
+          <a href="/inbox">Inbox{% if inboxUnreadCount > 0 %} <span class="badge badge-notify">{{ inboxUnreadCount }}</span>{% endif %}</a>
         {% endif %}
       </nav>
 
@@ -41,7 +41,7 @@
           <div class="user-menu-panel">
             <p class="user-menu-email">{{ currentUser.email }}</p>
             {% if currentUser.role === 'admin' %}<p class="badge badge-admin">Administrator</p>{% endif %}
-            <a href="/account">My account{% if inboxUnreadCount > 0 %} ({{ inboxUnreadCount }}){% endif %}</a>
+            <a href="/account">My account</a>
             <form method="post" action="/logout">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">
               <button type="submit" class="link-button">Sign out</button>

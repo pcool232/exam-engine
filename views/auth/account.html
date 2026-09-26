@@ -63,28 +63,7 @@
 </div>
 
 {% if currentUser.role !== 'admin' %}
-<div class="card" id="inbox">
-  <div class="card-title">
-    <h2>Inbox</h2>
-  </div>
-
-  {% if messages.length === 0 %}
-    <p class="muted">Nothing here yet -- you'll see a note when new exams are published.</p>
-  {% else %}
-    <div class="inbox-list">
-      {% for message in messages %}
-        <div class="inbox-item {% if message.is_read === 0 %}is-unread{% endif %}">
-          <div class="inbox-item-head">
-            <strong>{{ message.title }}</strong>
-            {% if message.is_read === 0 %}<span class="badge badge-notify">New</span>{% endif %}
-          </div>
-          <p class="inbox-item-body">{{ message.body }}</p>
-          <p class="tiny muted">{{ message.created_at }}</p>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-</div>
+<p class="small"><a href="/inbox">Go to your inbox &rarr;</a></p>
 {% endif %}
 
 <script src="/static/js/auth-forms.js" defer></script>

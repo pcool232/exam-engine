@@ -1,0 +1,25 @@
+<div class="page-head">
+  <div>
+    <h1>Inbox</h1>
+    <p>Notices about your account and newly published exams.</p>
+  </div>
+</div>
+
+<div class="card">
+  {% if messages.length === 0 %}
+    <p class="muted">Nothing here yet -- you'll see a note when new exams are published.</p>
+  {% else %}
+    <div class="inbox-list">
+      {% for message in messages %}
+        <div class="inbox-item {% if message.is_read === 0 %}is-unread{% endif %}">
+          <div class="inbox-item-head">
+            <strong>{{ message.title }}</strong>
+            {% if message.is_read === 0 %}<span class="badge badge-notify">New</span>{% endif %}
+          </div>
+          <p class="inbox-item-body">{{ message.body }}</p>
+          <p class="tiny muted">{{ message.created_at }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

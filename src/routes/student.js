@@ -2,6 +2,7 @@
 
 const exams = require('../models/exams');
 const attempts = require('../models/attempts');
+const inbox = require('../models/inbox');
 const { requireStudent, setFlash } = require('../middleware/auth');
 
 function notFound(message = 'Not found') {
@@ -242,6 +243,21 @@ function register(app) {
       title: 'My results',
       attempts: await attempts.listAttemptsForUser(req.user.id, 500),
     });
+  });
+
+  /* ------------------------------------------------------------ inbox -- */
+  // "Internal mail" -- see models/inbox.js. Own page rather than a card on
+  // /account, so it sits alongside Exams/My results in the nav.
+
+  app.get('/inbox', requireStudent, async (req, res) => {
+    // Fetched (with each message's original is_read flag, so this view can
+    // still show which ones were unread) before marking them all read, so
+    // opening the page is what clears the badge in the nav/topbar.
+    const messages = await inbox.listForUser(req.user.id);
+    await inbox.markAllRead(req.user.id);
+    res.locals.inboxUnreadCount = 0; // clears the nav badge for this same response
+
+    return res.render('student/inbox', { title: 'Inbox', messages });
   });
 }
 
