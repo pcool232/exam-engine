@@ -61,6 +61,25 @@ const config = {
   // "Sign in with Google" is switched on by setting this. Leave blank and the
   // button simply does not appear -- email/password keeps working either way.
   googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
+
+  // Outgoing email, used only for "forgot your password?" reset links (see
+  // src/lib/mailer.js). Leave SMTP_HOST blank and the link is logged to the
+  // server console instead of emailed -- fine for local dev, not for
+  // production. Works with a normal SMTP relay: Gmail with an app password,
+  // Office 365, Zoho, a school's own mail server, and so on.
+  smtpHost: (process.env.SMTP_HOST || '').trim(),
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  // Falls back to SMTP_USER -- most relays require the From address to be
+  // (or at least match the domain of) the authenticated account anyway.
+  smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER || '',
+  // Implicit TLS from the first byte (port 465), rather than plaintext-then-
+  // STARTTLS (port 587, the default). Sites also set this from the port
+  // automatically, but a relay on a non-standard port may need it explicit.
+  smtpSecure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+  // How long a password reset link stays valid for.
+  resetTokenTtlMinutes: Number(process.env.RESET_TOKEN_TTL_MINUTES || 60),
 };
 
 config.isProduction = config.env === 'production';

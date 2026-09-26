@@ -44,4 +44,25 @@ function checkPasswordStrength(plain) {
   return null;
 }
 
-module.exports = { hashPassword, verifyPassword, checkPasswordStrength };
+/**
+ * "Forgot password" reset tokens. Only the SHA-256 hash of the token is
+ * ever stored (see models/users.js) -- the token itself lives only in the
+ * emailed link and the visitor's browser, so a leaked database dump alone
+ * can't be replayed as a working reset link. Hashing (not scrypt) is
+ * deliberate here: the token is already 256 bits of random data, not a
+ * human-chosen password, so there's nothing for a slow, salted hash to
+ * protect against that a fast one doesn't.
+ */
+function generateResetToken() {
+  const token = crypto.randomBytes(32).toString('base64url');
+  return { token, hash: hashResetToken(token) };
+}
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(String(token)).digest('hex');
+}
+
+module.exports = {
+  hashPassword, verifyPassword, checkPasswordStrength,
+  generateResetToken, hashResetToken,
+};

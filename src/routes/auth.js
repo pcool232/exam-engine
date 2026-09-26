@@ -2,8 +2,10 @@
 
 const users = require('../models/users');
 const config = require('../config');
-const { checkPasswordStrength } = require('../lib/password');
+const { checkPasswordStrength, generateResetToken, hashResetToken } = require('../lib/password');
 const { verifyGoogleIdToken } = require('../lib/google-auth');
+const { sendMail } = require('../lib/mailer');
+const { escapeHtml } = require('../core/template');
 const { setFlash } = require('../middleware/auth');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -16,6 +18,15 @@ function safeNext(value) {
 
 function landingFor(user) {
   return user.role === 'admin' ? '/admin' : '/dashboard';
+}
+
+/** Best-effort absolute origin for the current request, used to build a
+ *  password reset link that works whether it's opened from localhost, a
+ *  Vercel preview URL, or the real domain -- there's no single "the app's
+ *  URL" to hard-code, since the same code runs behind all three. */
+function requestOrigin(req) {
+  const proto = req.headers['x-forwarded-proto'] || (req.socket?.encrypted ? 'https' : 'http');
+  return `${String(proto).split(',')[0].trim()}://${req.headers.host}`;
 }
 
 function register(app) {
@@ -49,6 +60,112 @@ function register(app) {
     // New session id on privilege change guards against session fixation.
     await req.regenerateSession({ userId: user.id });
     return res.redirect(nextUrl || landingFor(user));
+  });
+
+  /* -------------------------------------------------------- forgot pw -- */
+  // Self-service reset via a one-time emailed link (see lib/mailer.js).
+  // If this deployment has no SMTP configured, the link is logged to the
+  // server console instead -- and an administrator can always reset a
+  // student's password directly from /admin/students without email at all.
+
+  app.get('/forgot-password', (req, res) => {
+    if (req.user) return res.redirect(landingFor(req.user));
+    return res.render('auth/forgot-password', {
+      title: 'Forgot your password?',
+      values: {}, errors: [], sent: false,
+    });
+  });
+
+  app.post('/forgot-password', async (req, res) => {
+    const email = String(req.body.email || '').trim();
+
+    if (!EMAIL_PATTERN.test(email)) {
+      return res.status(400).render('auth/forgot-password', {
+        title: 'Forgot your password?',
+        values: { email }, errors: ['Please enter a valid email address.'], sent: false,
+      });
+    }
+
+    const user = await users.findByEmail(email);
+    // Same response whether or not the address has an account -- so this
+    // page can't be used to find out which emails are registered. A
+    // Google-only account (users.createFromGoogle) has no usable password
+    // to reset, so it's quietly skipped rather than sending a dead-end link.
+    if (user && user.is_active && !user.google_sub) {
+      const { token, hash } = generateResetToken();
+      const expiresAt = Date.now() + config.resetTokenTtlMinutes * 60 * 1000;
+      await users.setResetToken(user.id, hash, expiresAt);
+
+      const resetUrl = `${requestOrigin(req)}/reset-password/${token}`;
+      const name = escapeHtml(user.full_name);
+      const appName = escapeHtml(config.appName);
+
+      try {
+        await sendMail({
+          to: user.email,
+          subject: `Reset your ${config.appName} password`,
+          text: `Hi ${user.full_name},\n\n`
+            + `Someone asked to reset the password on your ${config.appName} account. `
+            + `If that was you, open this link within ${config.resetTokenTtlMinutes} minutes to choose a new password:\n\n${resetUrl}\n\n`
+            + `If you didn't ask for this, you can ignore this email -- your password hasn't changed.`,
+          html: `<p>Hi ${name},</p>`
+            + `<p>Someone asked to reset the password on your ${appName} account. `
+            + `If that was you, open this link within ${config.resetTokenTtlMinutes} minutes to choose a new password:</p>`
+            + `<p><a href="${resetUrl}">${resetUrl}</a></p>`
+            + `<p>If you didn't ask for this, you can ignore this email — your password hasn't changed.</p>`,
+        });
+      } catch (err) {
+        // Never surface a delivery failure here -- it would tell a visitor
+        // this email address exists. Logged for an administrator to notice
+        // (e.g. SMTP credentials have gone stale).
+        console.error('[auth] failed to send password reset email:', err);
+      }
+    }
+
+    return res.render('auth/forgot-password', {
+      title: 'Forgot your password?',
+      values: {}, errors: [], sent: true,
+    });
+  });
+
+  /* -------------------------------------------------------- reset pw -- */
+
+  app.get('/reset-password/:token', async (req, res) => {
+    const user = await users.findByResetTokenHash(hashResetToken(req.params.token));
+    return res.status(user ? 200 : 400).render('auth/reset-password', {
+      title: 'Reset your password',
+      token: req.params.token,
+      valid: Boolean(user),
+      errors: [],
+    });
+  });
+
+  app.post('/reset-password/:token', async (req, res) => {
+    const user = await users.findByResetTokenHash(hashResetToken(req.params.token));
+    if (!user) {
+      return res.status(400).render('auth/reset-password', {
+        title: 'Reset your password', token: req.params.token, valid: false, errors: [],
+      });
+    }
+
+    const password = String(req.body.password || '');
+    const confirmPassword = String(req.body.confirmPassword || '');
+
+    const errors = [];
+    const strength = checkPasswordStrength(password);
+    if (strength) errors.push(strength);
+    if (password !== confirmPassword) errors.push('The two passwords do not match.');
+
+    if (errors.length > 0) {
+      return res.status(400).render('auth/reset-password', {
+        title: 'Reset your password', token: req.params.token, valid: true, errors,
+      });
+    }
+
+    await users.updatePassword(user.id, password);
+    await req.regenerateSession({ userId: user.id });
+    setFlash(req, 'success', 'Your password has been changed.');
+    return res.redirect(landingFor(user));
   });
 
   /* -------------------------------------------------------- google sso -- */

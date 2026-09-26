@@ -91,7 +91,34 @@ async function authenticate(email, password) {
 }
 
 async function updatePassword(userId, newPassword) {
-  await run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(newPassword), Number(userId)]);
+  // Also clears any outstanding "forgot password" reset link -- a password
+  // changed by any route (this one, the admin's direct reset, or a reset
+  // link itself) should invalidate every other pending way to change it.
+  await run(
+    'UPDATE users SET password_hash = ?, reset_token_hash = NULL, reset_token_expires = NULL WHERE id = ?',
+    [hashPassword(newPassword), Number(userId)]
+  );
+}
+
+/** Stores the hash of a "forgot password" reset token and when it expires
+ *  (epoch ms). See lib/password.js#generateResetToken. */
+async function setResetToken(userId, tokenHash, expiresAt) {
+  await run(
+    'UPDATE users SET reset_token_hash = ?, reset_token_expires = ? WHERE id = ?',
+    [tokenHash, Number(expiresAt), Number(userId)]
+  );
+}
+
+/** Looks a user up by the hash of a reset token, honouring its expiry.
+ *  Returns null for an unknown, already-used, or expired token. */
+async function findByResetTokenHash(tokenHash) {
+  const user = await get('SELECT * FROM users WHERE reset_token_hash = ?', [String(tokenHash)]);
+  if (!user || !user.reset_token_expires || Number(user.reset_token_expires) < Date.now()) return null;
+  return user;
+}
+
+async function clearResetToken(userId) {
+  await run('UPDATE users SET reset_token_hash = NULL, reset_token_expires = NULL WHERE id = ?', [Number(userId)]);
 }
 
 async function setRole(userId, role) {
@@ -134,6 +161,7 @@ async function countAll() {
 module.exports = {
   findByEmail, findById, findByGoogleSub, create, createFromGoogle, linkGoogleSub,
   authenticate, updatePassword,
+  setResetToken, findByResetTokenHash, clearResetToken,
   setRole, setActive, remove, listStudents, listAdmins, countAll,
   setCategory, cleanCategory, CATEGORIES,
 };

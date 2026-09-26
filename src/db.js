@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -189,6 +189,12 @@ const COLUMN_MIGRATIONS = [
   // attempts created before this column existed -- submitAttempt() falls
   // back to the exam's current pass_mark for those.
   { table: 'attempts', column: 'pass_mark', definition: 'INTEGER' },
+  // "Forgot password?" reset links (see lib/mailer.js, routes/auth.js).
+  // Only the SHA-256 hash of the token is stored, alongside when it expires
+  // (epoch ms, same convention as attempts.expires_at); both are cleared as
+  // soon as the token is used, or a password is changed any other way.
+  { table: 'users', column: 'reset_token_hash', definition: 'TEXT' },
+  { table: 'users', column: 'reset_token_expires', definition: 'BIGINT' },
 ];
 
 /** Converts this app's `?` placeholders to Postgres's `$1, $2, ...`. */
@@ -288,6 +294,12 @@ async function applyMigrations() {
       console.log(`[db] added ${table}.${column}`);
     }
   }
+  // Needs users.reset_token_hash to already exist, so this runs after the
+  // migration loop above rather than living in SCHEMA_STATEMENTS (which runs
+  // before it, and would fail on a database migrating up from version 2).
+  await rawQuery(
+    'CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users (reset_token_hash) WHERE reset_token_hash IS NOT NULL'
+  );
 }
 
 let ready = null;

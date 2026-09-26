@@ -31,6 +31,7 @@ function buildApp() {
     categoryLabel,
     subjectIcon,
     googleClientId: config.googleClientId,
+    resetTokenTtlMinutes: config.resetTokenTtlMinutes,
     nextUrl: '', // overridden by /login when it has a "next" target to preserve
     // Set by a route to a number of seconds to have the layout auto-reload
     // the page (see partials/layout.html) -- for pages showing live-ish
