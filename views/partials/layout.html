@@ -27,6 +27,7 @@
         {% else %}
           <a href="/dashboard">Exams</a>
           <a href="/history">My results</a>
+          <a href="/account#inbox">Inbox{% if inboxUnreadCount > 0 %} <span class="badge badge-notify">{{ inboxUnreadCount }}</span>{% endif %}</a>
         {% endif %}
       </nav>
 
