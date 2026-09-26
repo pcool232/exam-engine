@@ -44,7 +44,22 @@ types.setTypeParser(20, (value) => parseInt(value, 10));
 // and averages, so parse it as a plain number to match pre-Postgres behaviour.
 types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value)));
 
+// Bump this whenever SCHEMA_STATEMENTS or COLUMN_MIGRATIONS below changes.
+// ensureReady() uses it as a fast-path: once a warm-enough instance (or a
+// previous cold start) has recorded this version, later cold starts skip
+// straight past all 17 CREATE-TABLE/migration round trips with a single
+// SELECT instead of re-running (and re-checking) every one of them.
+const CURRENT_SCHEMA_VERSION = 1;
+
 const SCHEMA_STATEMENTS = [
+  // Tracks which schema/migration version has already been applied, so a
+  // fresh serverless instance can skip the full statement list below once
+  // this matches CURRENT_SCHEMA_VERSION -- see ensureReady().
+  `CREATE TABLE IF NOT EXISTS schema_meta (
+    id      INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    version INTEGER NOT NULL
+  )`,
+
   `CREATE TABLE IF NOT EXISTS users (
     id             SERIAL PRIMARY KEY,
     full_name      TEXT    NOT NULL,
@@ -192,6 +207,14 @@ function getPool() {
   pool = new Pool({
     connectionString: config.databaseUrl,
     max: config.databasePoolMax || 5,
+    // Fail fast rather than hang. On serverless, a connection attempt that
+    // just hangs (network blip, Supabase project mid-wake-from-pause, a
+    // transient DNS hiccup) would otherwise sit there until the platform's
+    // own function timeout kills the whole invocation -- slow, unclear to
+    // debug, and it burns the request without ever producing a real error.
+    // 8s is generous for a normal connection but short enough that a genuine
+    // problem surfaces as a proper error response instead.
+    connectionTimeoutMillis: 8000,
   });
   pool.on('error', (err) => {
     // An idle client emitting an error (e.g. connection dropped by the
@@ -206,7 +229,15 @@ function getPool() {
 // these bypass ensureReady() below (they run *during* readiness itself, so
 // waiting on it here would deadlock).
 async function rawQuery(sql, params = []) {
-  return getPool().query(convertPlaceholders(sql), params);
+  // pg only uses its simple query protocol (which allows a semicolon-
+  // separated string of several statements, as the schema/migration setup
+  // above relies on) when `.query()` is called with no params argument at
+  // all -- passing even an empty array switches it to the prepared-
+  // statement protocol, which rejects multiple commands outright. Every
+  // other caller here does pass real params and is unaffected.
+  return params.length === 0
+    ? getPool().query(convertPlaceholders(sql))
+    : getPool().query(convertPlaceholders(sql), params);
 }
 
 async function columnExists(table, column) {
@@ -233,15 +264,56 @@ let ready = null;
  * the first call). Every public db call waits on this first, so nothing has
  * to worry about start-up ordering -- including a cold-started serverless
  * function that's never touched the database before.
+ *
+ * (A batched, single-round-trip version of this was tried and reverted --
+ * Supabase's Transaction pooler, which this app's DATABASE_URL points at,
+ * has known restrictions around multi-statement queries under transaction
+ * pooling, and there was no safe way to verify that against the real
+ * pooler from the environment this was written in. One statement per
+ * round trip is slower on a cold start but is the version actually proven
+ * to work against production. If cold-start latency on the first request
+ * to a fresh instance turns out to matter in practice, revisit this with
+ * a way to test against the real Supabase pooler first.)
+ *
+ * Deliberately doesn't cache a *failed* attempt: `ready` used to be set
+ * unconditionally on the first call and never touched again, so a single
+ * transient failure here (a dropped connection during a cold start, the
+ * database briefly unreachable) would wedge every future call on that same
+ * warm serverless instance -- they'd all `await` the same already-rejected
+ * promise forever, with no way to recover short of the platform eventually
+ * recycling the container. Clearing `ready` on failure means the next call
+ * gets a clean retry instead.
  */
 function ensureReady() {
   if (!ready) {
     ready = (async () => {
+      // Fast path: a single query. schema_meta won't exist yet on a
+      // brand-new database (a bare 42P01 "relation does not exist"), and
+      // that -- like a version mismatch -- just falls through to the full
+      // path below, so this can never wedge a fresh install.
+      try {
+        const row = await rawQuery('SELECT version FROM schema_meta WHERE id = 1')
+          .then((r) => r.rows[0]);
+        if (row && row.version === CURRENT_SCHEMA_VERSION) return;
+      } catch {
+        // schema_meta doesn't exist yet (or some other transient read
+        // error) -- fall through and let the full path below create it.
+      }
+
       for (const statement of SCHEMA_STATEMENTS) {
         await rawQuery(statement);
       }
       await applyMigrations();
-    })();
+
+      await rawQuery(
+        `INSERT INTO schema_meta (id, version) VALUES (1, ?)
+         ON CONFLICT (id) DO UPDATE SET version = excluded.version`,
+        [CURRENT_SCHEMA_VERSION]
+      );
+    })().catch((err) => {
+      ready = null;
+      throw err;
+    });
   }
   return ready;
 }
