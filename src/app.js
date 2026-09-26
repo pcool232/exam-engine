@@ -45,6 +45,14 @@ function buildApp() {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'same-origin');
+    // Every dynamic response here depends on session/auth state (or is a
+    // state-changing POST), so none of it is safe for a browser or CDN edge
+    // to cache -- a cached sign-in redirect or stale CSRF/session page is
+    // exactly the kind of thing that looks like an intermittent, unrelated
+    // bug later. serveStatic() (registered next) overwrites this for actual
+    // static files with its own Cache-Control, so this only affects the
+    // dynamic routes below it.
+    res.setHeader('Cache-Control', 'no-store');
     await next();
   });
 
