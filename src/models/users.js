@@ -148,6 +148,15 @@ async function listStudents({ search = '' } = {}) {
   );
 }
 
+/** Active students in one exam category -- who a newly-published exam in
+ *  that category should be announced to (see routes/admin.js#publish and
+ *  models/inbox.js). */
+async function listStudentsByCategory(category) {
+  const clean = cleanCategory(category);
+  if (!clean) return [];
+  return all("SELECT id FROM users WHERE role = 'student' AND is_active = 1 AND category = ?", [clean]);
+}
+
 async function listAdmins() {
   return all("SELECT * FROM users WHERE role = 'admin' ORDER BY created_at");
 }
@@ -162,6 +171,6 @@ module.exports = {
   findByEmail, findById, findByGoogleSub, create, createFromGoogle, linkGoogleSub,
   authenticate, updatePassword,
   setResetToken, findByResetTokenHash, clearResetToken,
-  setRole, setActive, remove, listStudents, listAdmins, countAll,
+  setRole, setActive, remove, listStudents, listStudentsByCategory, listAdmins, countAll,
   setCategory, cleanCategory, CATEGORIES,
 };

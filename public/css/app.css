@@ -266,6 +266,22 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mono
 .badge-admin { background: var(--accent-soft); color: var(--accent-dark); border-color: #ccd7fb; }
 .badge-pass { background: var(--success-soft); color: var(--success); border-color: #bfe3d0; }
 .badge-fail { background: var(--danger-soft); color: var(--danger); border-color: #f3c8ce; }
+.badge-notify {
+  background: var(--danger); color: #fff; border-color: var(--danger);
+  padding: .05rem .4rem; font-size: .7rem; min-width: 1.1em; text-align: center;
+}
+
+/* ------------------------------------------------------------- inbox -- */
+
+.inbox-list { display: grid; gap: .75rem; }
+.inbox-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .75rem .9rem;
+}
+.inbox-item.is-unread { background: var(--accent-soft); border-color: #ccd7fb; }
+.inbox-item-head { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
+.inbox-item-body { margin: .35rem 0 .25rem; }
 
 /* -------------------------------------------------------------- table -- */
 

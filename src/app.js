@@ -33,6 +33,7 @@ function buildApp() {
     googleClientId: config.googleClientId,
     resetTokenTtlMinutes: config.resetTokenTtlMinutes,
     nextUrl: '', // overridden by /login when it has a "next" target to preserve
+    inboxUnreadCount: 0, // overridden by middleware/auth.js#loadUser for signed-in students
     // Set by a route to a number of seconds to have the layout auto-reload
     // the page (see partials/layout.html) -- for pages showing live-ish
     // data (the admin dashboard, results) that an admin would otherwise

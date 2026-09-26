@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -153,10 +153,27 @@ const SCHEMA_STATEMENTS = [
     expires_at  BIGINT NOT NULL
   )`,
 
+  // Internal "mail" -- a welcome message dropped into a new student's inbox
+  // when their account is created, and a notice dropped into every matching
+  // student's inbox when an exam they can see is published. See
+  // src/models/inbox.js.
+  `CREATE TABLE IF NOT EXISTS inbox_messages (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind       TEXT    NOT NULL DEFAULT 'welcome' CHECK (kind IN ('welcome','exam')),
+    title      TEXT    NOT NULL,
+    body       TEXT    NOT NULL,
+    exam_id    INTEGER REFERENCES exams(id) ON DELETE SET NULL,
+    is_read    INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT (TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'))
+  )`,
+
   'CREATE INDEX IF NOT EXISTS idx_questions_exam    ON questions(exam_id, position)',
   'CREATE INDEX IF NOT EXISTS idx_options_question  ON options(question_id, position)',
   'CREATE INDEX IF NOT EXISTS idx_attempts_user     ON attempts(user_id, started_at DESC)',
   'CREATE INDEX IF NOT EXISTS idx_attempts_exam     ON attempts(exam_id)',
+  'CREATE INDEX IF NOT EXISTS idx_inbox_user        ON inbox_messages(user_id, created_at DESC, id DESC)',
+  `CREATE INDEX IF NOT EXISTS idx_inbox_unread ON inbox_messages(user_id) WHERE is_read = 0`,
   // At most one in-progress attempt per student per exam. Without this, a
   // double-click on "Start" (two POST /exams/:id/start requests landing
   // before either INSERT commits) can create two open attempts for the same

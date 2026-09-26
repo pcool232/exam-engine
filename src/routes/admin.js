@@ -4,9 +4,11 @@ const crypto = require('node:crypto');
 const exams = require('../models/exams');
 const attempts = require('../models/attempts');
 const users = require('../models/users');
+const inbox = require('../models/inbox');
 const { parseQuestions, FORMAT_LABELS } = require('../lib/parsers');
 const { requireAdmin, setFlash } = require('../middleware/auth');
 const { checkPasswordStrength } = require('../lib/password');
+const { sendWelcomeMessage } = require('./auth');
 
 const LABELS = exams.LABELS;
 
@@ -210,7 +212,29 @@ function register(app) {
       return res.redirect(`/admin/exams/${exam.id}`);
     }
 
+    const wasPublished = Boolean(exam.is_published);
     await exams.setPublished(exam.id, publish);
+
+    // Announce it in every matching-category student's inbox -- only the
+    // moment it actually becomes visible to them (not on every toggle, and
+    // not while it's still a draft nobody but the admin can see).
+    if (publish && !wasPublished && exam.category) {
+      try {
+        const recipients = await users.listStudentsByCategory(exam.category);
+        if (recipients.length) {
+          await inbox.sendToMany(recipients.map((r) => r.id), {
+            kind: 'exam',
+            title: `New exam available: ${exam.title}`,
+            body: `A new ${exam.category} exam, "${exam.title}", has just been published. `
+              + `Head to your dashboard to give it a go.`,
+            examId: exam.id,
+          });
+        }
+      } catch (err) {
+        console.error('[admin] failed to send exam-published inbox messages:', err);
+      }
+    }
+
     setFlash(req, 'success', publish
       ? 'The exam is now live for students.'
       : 'The exam has been hidden from students.');
@@ -648,10 +672,11 @@ function register(app) {
       return res.redirect('/admin/students');
     }
 
-    await users.create({
+    const created = await users.create({
       fullName, email, password, role,
       studentNumber: String(req.body.studentNumber || '').trim() || null,
     });
+    await sendWelcomeMessage(created);
     setFlash(req, 'success', `Account created for ${fullName}.`);
     return res.redirect('/admin/students');
   });

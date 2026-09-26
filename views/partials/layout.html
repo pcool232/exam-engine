@@ -35,11 +35,12 @@
           <summary>
             <span class="avatar">{{ currentUser.full_name.trim().charAt(0).toUpperCase() }}</span>
             <span class="user-name">{{ currentUser.full_name }}</span>
+            {% if inboxUnreadCount > 0 %}<span class="badge badge-notify">{{ inboxUnreadCount }}</span>{% endif %}
           </summary>
           <div class="user-menu-panel">
             <p class="user-menu-email">{{ currentUser.email }}</p>
             {% if currentUser.role === 'admin' %}<p class="badge badge-admin">Administrator</p>{% endif %}
-            <a href="/account">My account</a>
+            <a href="/account">My account{% if inboxUnreadCount > 0 %} ({{ inboxUnreadCount }}){% endif %}</a>
             <form method="post" action="/logout">
               <input type="hidden" name="_csrf" value="{{ csrfToken }}">
               <button type="submit" class="link-button">Sign out</button>

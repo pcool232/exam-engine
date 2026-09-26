@@ -1,6 +1,7 @@
 'use strict';
 
 const users = require('../models/users');
+const inbox = require('../models/inbox');
 const config = require('../config');
 const { checkPasswordStrength, generateResetToken, hashResetToken } = require('../lib/password');
 const { verifyGoogleIdToken } = require('../lib/google-auth');
@@ -18,6 +19,24 @@ function safeNext(value) {
 
 function landingFor(user) {
   return user.role === 'admin' ? '/admin' : '/dashboard';
+}
+
+/** Drops the one-time welcome message into a new student's inbox (see
+ *  models/inbox.js). Never blocks or fails account creation -- a missed
+ *  welcome note isn't worth turning a successful signup into an error. */
+async function sendWelcomeMessage(user) {
+  if (user.role !== 'student') return;
+  try {
+    await inbox.send(user.id, {
+      kind: 'welcome',
+      title: `Welcome to ${config.appName}`,
+      body: `Hi ${user.full_name}, your account is ready. `
+        + `Head to your dashboard to start practising past papers`
+        + (user.category ? ` for ${user.category}.` : ' -- choose an exam level first if you haven’t already.'),
+    });
+  } catch (err) {
+    console.error('[auth] failed to send welcome inbox message:', err);
+  }
 }
 
 /** Best-effort absolute origin for the current request, used to build a
@@ -203,6 +222,7 @@ function register(app) {
         return fail('Self-registration is switched off. Ask your administrator for an account.');
       } else {
         user = await users.createFromGoogle({ fullName: profile.name, email: profile.email, googleSub: profile.sub });
+        await sendWelcomeMessage(user);
       }
     }
 
@@ -272,6 +292,7 @@ function register(app) {
       category: values.category,
       role: 'student',
     });
+    await sendWelcomeMessage(user);
 
     await req.regenerateSession({ userId: user.id });
     setFlash(req, 'success', `Welcome, ${user.full_name}. Your account is ready.`);
@@ -324,9 +345,20 @@ function register(app) {
 
   /* -------------------------------------------------------- password -- */
 
-  app.get('/account', (req, res) => {
+  app.get('/account', async (req, res) => {
     if (!req.user) return res.redirect('/login');
-    return res.render('auth/account', { title: 'My account', errors: [] });
+
+    let messages = [];
+    if (req.user.role === 'student') {
+      // Fetched (with their original is_read flags, so this view can still
+      // show which ones were unread) before marking them read, so opening
+      // the page is what clears the badge in the topbar.
+      messages = await inbox.listForUser(req.user.id);
+      await inbox.markAllRead(req.user.id);
+      res.locals.inboxUnreadCount = 0; // clears the topbar badge for this same response
+    }
+
+    return res.render('auth/account', { title: 'My account', errors: [], messages });
   });
 
   app.post('/account/password', async (req, res) => {
@@ -352,4 +384,4 @@ function register(app) {
   });
 }
 
-module.exports = { register, landingFor };
+module.exports = { register, landingFor, sendWelcomeMessage };

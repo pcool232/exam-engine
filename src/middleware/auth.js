@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const users = require('../models/users');
+const inbox = require('../models/inbox');
 
 /** Attaches req.user (or null) from the session. */
 async function loadUser(req, res, next) {
@@ -17,6 +18,12 @@ async function loadUser(req, res, next) {
   }
   res.locals.currentUser = req.user;
   res.locals.flash = takeFlash(req);
+  // Unread inbox count for the little badge next to the account menu (see
+  // partials/layout.html and models/inbox.js) -- students only; admins have
+  // no inbox of their own.
+  res.locals.inboxUnreadCount = (req.user && req.user.role === 'student')
+    ? await inbox.unreadCount(req.user.id)
+    : 0;
   await next();
 }
 
