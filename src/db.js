@@ -229,6 +229,25 @@ function getPool() {
     // 8s is generous for a normal connection but short enough that a genuine
     // problem surfaces as a proper error response instead.
     connectionTimeoutMillis: 8000,
+    // The above only bounds *opening* a connection -- once a query is sent
+    // over an already-open one, there was no limit at all on how long it
+    // could sit waiting for a reply. Over Supabase's pooled (PgBouncer)
+    // connection, a slot that goes stale between Vercel invocations can
+    // accept a query and then never answer it, so the request just hangs
+    // until Vercel's own platform timeout kills the function -- which is
+    // exactly what a "white screen that never resolves" looks like from the
+    // browser, however clean the code here is. Both of the following bound
+    // that: query_timeout cancels client-side after 10s if Postgres hasn't
+    // replied; statement_timeout tells Postgres itself to give up server-side
+    // (belt and braces -- covers a query that reached the server but got
+    // stuck there, which query_timeout alone wouldn't catch as cleanly).
+    query_timeout: 10000,
+    statement_timeout: 10000,
+    // A connection that's sat idle in the pool for a while is more likely to
+    // be one PgBouncer has already quietly dropped -- recycling it well
+    // before that (default is 10 minutes) means the next checkout gets a
+    // fresh connection instead of a stale one that immediately errors out.
+    idleTimeoutMillis: 20000,
   });
   pool.on('error', (err) => {
     // An idle client emitting an error (e.g. connection dropped by the
