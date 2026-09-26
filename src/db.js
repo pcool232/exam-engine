@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -154,13 +154,14 @@ const SCHEMA_STATEMENTS = [
   )`,
 
   // Internal "mail" -- a welcome message dropped into a new student's inbox
-  // when their account is created, and a notice dropped into every matching
-  // student's inbox when an exam they can see is published. See
-  // src/models/inbox.js.
+  // when their account is created, a notice dropped into every matching
+  // student's inbox when an exam they can see is published, and anything an
+  // administrator writes by hand from /admin/messages (to everyone, one
+  // exam level, or a single student). See src/models/inbox.js.
   `CREATE TABLE IF NOT EXISTS inbox_messages (
     id         SERIAL PRIMARY KEY,
     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    kind       TEXT    NOT NULL DEFAULT 'welcome' CHECK (kind IN ('welcome','exam')),
+    kind       TEXT    NOT NULL DEFAULT 'welcome' CHECK (kind IN ('welcome','exam','admin')),
     title      TEXT    NOT NULL,
     body       TEXT    NOT NULL,
     exam_id    INTEGER REFERENCES exams(id) ON DELETE SET NULL,
@@ -317,6 +318,16 @@ async function applyMigrations() {
   await rawQuery(
     'CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users (reset_token_hash) WHERE reset_token_hash IS NOT NULL'
   );
+
+  // A database created before schema version 5 has inbox_messages.kind's
+  // CHECK constraint limited to ('welcome','exam') -- SCHEMA_STATEMENTS above
+  // only ever CREATEs the table, so an existing one needs its constraint
+  // widened by hand to also allow 'admin' (admin-composed messages, see
+  // routes/admin.js#/admin/messages). Dropping and re-adding is idempotent
+  // and cheap even when the table doesn't exist yet, so this is safe to run
+  // unconditionally rather than needing its own column-exists-style guard.
+  await rawQuery('ALTER TABLE inbox_messages DROP CONSTRAINT IF EXISTS inbox_messages_kind_check');
+  await rawQuery("ALTER TABLE inbox_messages ADD CONSTRAINT inbox_messages_kind_check CHECK (kind IN ('welcome','exam','admin'))");
 }
 
 let ready = null;

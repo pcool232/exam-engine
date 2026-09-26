@@ -720,6 +720,69 @@ function register(app) {
     return res.redirect('/admin/students');
   });
 
+  /* ----------------------------------------------------------- messages -- */
+  // Hand-written internal mail -- see models/inbox.js. Separate from the
+  // automatic welcome/exam-published messages: this is whatever an
+  // administrator wants to say, to everyone, to one exam level, or to one
+  // student.
+
+  function messageFormValues(body) {
+    return {
+      audience: ['category', 'student'].includes(body.audience) ? body.audience : 'all',
+      category: String(body.category || '').trim(),
+      studentId: String(body.studentId || '').trim(),
+      title: String(body.title || '').trim(),
+      body: String(body.body || '').trim(),
+    };
+  }
+
+  app.get('/admin/messages', requireAdmin, async (req, res) => {
+    return res.render('admin/messages', {
+      title: 'Send a message',
+      students: await users.listStudents({}),
+      categories: users.CATEGORIES,
+      values: {},
+      errors: [],
+    });
+  });
+
+  app.post('/admin/messages', requireAdmin, async (req, res) => {
+    const values = messageFormValues(req.body);
+    const students = await users.listStudents({});
+
+    const errors = [];
+    if (!values.title) errors.push('Please add a subject.');
+    if (!values.body) errors.push('Please write a message.');
+    if (values.audience === 'category' && !users.cleanCategory(values.category)) {
+      errors.push('Choose which exam level to message.');
+    }
+    let targetStudent = null;
+    if (values.audience === 'student') {
+      targetStudent = values.studentId ? await users.findById(values.studentId) : null;
+      if (!targetStudent || targetStudent.role !== 'student') errors.push('Choose a student to message.');
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).render('admin/messages', {
+        title: 'Send a message', students, categories: users.CATEGORIES, values, errors,
+      });
+    }
+
+    let count;
+    if (values.audience === 'student') {
+      await inbox.send(targetStudent.id, { kind: 'admin', title: values.title, body: values.body });
+      count = 1;
+    } else {
+      const recipients = values.audience === 'category'
+        ? await users.listStudentsByCategory(values.category)
+        : students;
+      count = await inbox.sendToMany(recipients.map((r) => r.id), { kind: 'admin', title: values.title, body: values.body });
+    }
+
+    setFlash(req, 'success', `Message sent to ${count} student${count === 1 ? '' : 's'}.`);
+    return res.redirect('/admin/messages');
+  });
+
   /* ----------------------------------------------------------- results -- */
 
   app.get('/admin/results', requireAdmin, async (req, res) => {

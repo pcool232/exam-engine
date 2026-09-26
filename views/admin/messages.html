@@ -1,0 +1,89 @@
+<div class="page-head">
+  <div>
+    <h1>Send a message</h1>
+    <p>Drops straight into the inbox on each student's account -- no email required.</p>
+  </div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    {% if errors.length > 0 %}
+      <div class="notice notice-error">
+        <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+
+    <form method="post" action="/admin/messages" id="messageForm">
+      <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+
+      <div class="field">
+        <label>Send to</label>
+        <div class="row" style="gap:1.2rem; flex-wrap:wrap; margin-top:.3rem">
+          <label class="row" style="gap:.35rem"><input type="radio" name="audience" value="all" {% if values.audience !== 'category' && values.audience !== 'student' %}checked{% endif %}> All students</label>
+          <label class="row" style="gap:.35rem"><input type="radio" name="audience" value="category" {% if values.audience === 'category' %}checked{% endif %}> One exam level</label>
+          <label class="row" style="gap:.35rem"><input type="radio" name="audience" value="student" {% if values.audience === 'student' %}checked{% endif %}> One student</label>
+        </div>
+      </div>
+
+      <div class="field" id="categoryField">
+        <label for="category">Exam level</label>
+        <select id="category" name="category">
+          <option value="">Choose…</option>
+          {% for c in categories %}
+            <option value="{{ c }}" {% if values.category === c %}selected{% endif %}>{{ categoryLabel(c) }} ({{ c }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field" id="studentField">
+        <label for="studentId">Student</label>
+        <select id="studentId" name="studentId">
+          <option value="">Choose…</option>
+          {% for student in students %}
+            <option value="{{ student.id }}" {% if values.studentId === String(student.id) %}selected{% endif %}>{{ student.full_name }} — {{ student.email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="title">Subject</label>
+        <input type="text" id="title" name="title" value="{{ values.title || '' }}" required>
+      </div>
+
+      <div class="field">
+        <label for="body">Message</label>
+        <textarea id="body" name="body" rows="6" required>{{ values.body || '' }}</textarea>
+      </div>
+
+      <button type="submit" class="button">Send message</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>A few notes</h2>
+    <ul>
+      <li>Messages show up in a student's <strong>Inbox</strong> tab immediately -- there's no email involved, so this works even without SMTP configured.</li>
+      <li>"One exam level" reaches every active student currently set to that level (PSLE, JC or BGCSE).</li>
+      <li>This is separate from the automatic welcome message new accounts get, and the automatic notice students get when an exam in their level is published.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('messageForm');
+  var categoryField = document.getElementById('categoryField');
+  var studentField = document.getElementById('studentField');
+
+  function sync() {
+    var audience = form.querySelector('input[name="audience"]:checked').value;
+    categoryField.style.display = audience === 'category' ? '' : 'none';
+    studentField.style.display = audience === 'student' ? '' : 'none';
+  }
+
+  form.querySelectorAll('input[name="audience"]').forEach(function (input) {
+    input.addEventListener('change', sync);
+  });
+  sync();
+})();
+</script>
