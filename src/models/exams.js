@@ -227,15 +227,86 @@ async function updateQuestion(questionId, { text, type, explanation, marks, opti
   });
 }
 
+// Importing one question and its options at a time (the shape addQuestion()
+// uses) means a paper of N questions costs roughly 1 + 5N awaited network
+// round trips to Postgres -- fine locally, but easily enough to blow past a
+// Vercel serverless function's execution time limit on a paper with more
+// than a few dozen questions, since every round trip pays full network
+// latency (Vercel's function region vs Supabase's database region). This
+// bulk path instead inserts a whole batch of questions in one multi-row
+// INSERT, and a whole batch of their options in a second one -- a handful of
+// round trips total for the entire paper, not thousands.
+const BULK_BATCH_SIZE = 200;
+
+function chunk(array, size) {
+  const out = [];
+  for (let i = 0; i < array.length; i += size) out.push(array.slice(i, i + size));
+  return out;
+}
+
 /** Bulk insert (used by the importer). Returns the number of questions saved. */
 async function addQuestionsBulk(examId, questions) {
+  if (questions.length === 0) return 0;
+
   return transaction(async (tx) => {
-    let saved = 0;
     let position = await nextPosition(examId, tx);
-    for (const question of questions) {
-      await addQuestion(examId, { ...question, position: position++ }, tx);
-      saved++;
+    let saved = 0;
+
+    for (const batch of chunk(questions, BULK_BATCH_SIZE)) {
+      // One multi-row INSERT for every question in this batch, in order --
+      // Postgres returns RETURNING rows for a plain VALUES-list INSERT in
+      // the same order the rows were listed, so questionRows[i] is batch[i].
+      const qPlaceholders = [];
+      const qParams = [];
+      for (const question of batch) {
+        const questionType = question.type === 'multiple' ? 'multiple' : 'single';
+        qPlaceholders.push('(?, ?, ?, ?, ?, ?, ?)');
+        qParams.push(
+          Number(examId),
+          String(question.text).trim(),
+          questionType,
+          question.image ? String(question.image).trim() : null,
+          question.explanation ? String(question.explanation).trim() : null,
+          Number(question.marks) > 0 ? Number(question.marks) : 1,
+          position++,
+        );
+      }
+      const questionRows = await tx.all(
+        `INSERT INTO questions (exam_id, question_text, question_type, image, explanation, marks, position)
+         VALUES ${qPlaceholders.join(', ')}
+         RETURNING id`,
+        qParams
+      );
+
+      // One multi-row INSERT for every option across every question in this
+      // batch.
+      const oPlaceholders = [];
+      const oParams = [];
+      batch.forEach((question, qi) => {
+        const questionId = Number(questionRows[qi].id);
+        (question.options || []).forEach((option, index) => {
+          oPlaceholders.push('(?, ?, ?, ?, ?)');
+          oParams.push(
+            questionId,
+            option.label || LABELS[index] || String(index + 1),
+            String(option.text).trim(),
+            option.isCorrect ? 1 : 0,
+            index + 1,
+          );
+        });
+      });
+      if (oPlaceholders.length) {
+        await tx.run(
+          `INSERT INTO options (question_id, label, option_text, is_correct, position)
+           VALUES ${oPlaceholders.join(', ')}`,
+          oParams
+        );
+      }
+
+      saved += questionRows.length;
     }
+
+    await touchExam(examId, tx);
     return saved;
   });
 }
