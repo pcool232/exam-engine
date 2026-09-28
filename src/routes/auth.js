@@ -8,6 +8,16 @@ const { verifyGoogleIdToken } = require('../lib/google-auth');
 const { sendMail } = require('../lib/mailer');
 const { escapeHtml } = require('../core/template');
 const { setFlash } = require('../middleware/auth');
+const rateLimit = require('../lib/rate-limit');
+
+// Applies to both /login and /forgot-password: a generous per-IP ceiling to
+// slow down a script working through many addresses/accounts from one
+// place, and a tighter per-account ceiling that's what actually stops
+// someone brute-forcing (or spamming reset emails at) one target.
+const LOGIN_IP_LIMIT = { limit: 20, windowMs: 15 * 60 * 1000 };
+const LOGIN_EMAIL_LIMIT = { limit: 5, windowMs: 15 * 60 * 1000 };
+const FORGOT_IP_LIMIT = { limit: 10, windowMs: 15 * 60 * 1000 };
+const FORGOT_EMAIL_LIMIT = { limit: 5, windowMs: 15 * 60 * 1000 };
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -66,6 +76,22 @@ function register(app) {
     const password = String(req.body.password || '');
     const nextUrl = safeNext(req.body.next);
 
+    const ipKey = `login:ip:${rateLimit.clientIp(req)}`;
+    const emailKey = email ? `login:email:${email.toLowerCase()}` : null;
+
+    const ipCheck = await rateLimit.hit(ipKey, LOGIN_IP_LIMIT);
+    const emailCheck = emailKey ? await rateLimit.hit(emailKey, LOGIN_EMAIL_LIMIT) : { allowed: true, retryAfterMs: 0 };
+
+    if (!ipCheck.allowed || !emailCheck.allowed) {
+      const retryAfterMs = Math.max(ipCheck.retryAfterMs, emailCheck.retryAfterMs);
+      return res.status(429).render('auth/login', {
+        title: 'Sign in',
+        nextUrl: nextUrl || '',
+        values: { email },
+        errors: [`Too many sign-in attempts. ${rateLimit.retryMessage(retryAfterMs)}`],
+      });
+    }
+
     const user = await users.authenticate(email, password);
     if (!user) {
       return res.status(401).render('auth/login', {
@@ -75,6 +101,11 @@ function register(app) {
         errors: ['That email address and password combination is not correct.'],
       });
     }
+
+    // A correct sign-in clears both counters -- a real user who fat-
+    // fingered their password a couple of times shouldn't stay throttled.
+    await rateLimit.reset(ipKey);
+    if (emailKey) await rateLimit.reset(emailKey);
 
     // New session id on privilege change guards against session fixation.
     await req.regenerateSession({ userId: user.id });
@@ -97,6 +128,21 @@ function register(app) {
 
   app.post('/forgot-password', async (req, res) => {
     const email = String(req.body.email || '').trim();
+
+    const ipCheck = await rateLimit.hit(`forgot:ip:${rateLimit.clientIp(req)}`, FORGOT_IP_LIMIT);
+    const emailCheck = email
+      ? await rateLimit.hit(`forgot:email:${email.toLowerCase()}`, FORGOT_EMAIL_LIMIT)
+      : { allowed: true, retryAfterMs: 0 };
+
+    if (!ipCheck.allowed || !emailCheck.allowed) {
+      const retryAfterMs = Math.max(ipCheck.retryAfterMs, emailCheck.retryAfterMs);
+      return res.status(429).render('auth/forgot-password', {
+        title: 'Forgot your password?',
+        values: { email },
+        errors: [`Too many requests. ${rateLimit.retryMessage(retryAfterMs)}`],
+        sent: false,
+      });
+    }
 
     if (!EMAIL_PATTERN.test(email)) {
       return res.status(400).render('auth/forgot-password', {

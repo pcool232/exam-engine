@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -167,6 +167,16 @@ const SCHEMA_STATEMENTS = [
     exam_id    INTEGER REFERENCES exams(id) ON DELETE SET NULL,
     is_read    INTEGER NOT NULL DEFAULT 0,
     created_at TEXT    NOT NULL DEFAULT (TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'))
+  )`,
+
+  // Fixed-window rate limiting (see src/lib/rate-limit.js) -- one row per
+  // limited key (e.g. "login:email:a@b.com" or "login:ip:1.2.3.4"). A table
+  // rather than an in-memory counter because this app runs as short-lived
+  // serverless functions on Vercel with no memory shared between them.
+  `CREATE TABLE IF NOT EXISTS rate_limits (
+    key          TEXT PRIMARY KEY,
+    count        INTEGER NOT NULL DEFAULT 1,
+    window_start BIGINT NOT NULL
   )`,
 
   'CREATE INDEX IF NOT EXISTS idx_questions_exam    ON questions(exam_id, position)',
