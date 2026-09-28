@@ -25,7 +25,7 @@
         <label>Exam level</label>
         <div class="category-picker">
           {% for c in categories %}
-            <label class="category-tile {% if currentUser.category === c %}is-selected{% endif %}">
+            <label class="category-tile {% if currentUser.category === c %}is-selected{% endif %}" data-category="{{ c }}">
               <input type="radio" name="category" value="{{ c }}" {% if currentUser.category === c %}checked{% endif %} required>
               <span class="category-tile-icon">{{ categoryIcon(c) }}</span>
               <span class="category-tile-code">{{ c }}</span>

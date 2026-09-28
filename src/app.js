@@ -16,7 +16,7 @@ const { loadUser, verifyCsrf } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const studentRoutes = require('./routes/student');
 const adminRoutes = require('./routes/admin');
-const { categoryIcon, categoryLabel, subjectIcon } = require('./lib/icons');
+const { categoryIcon, categoryLabel, subjectIcon, subjectColor } = require('./lib/icons');
 
 function buildApp() {
   const app = new App();
@@ -30,6 +30,7 @@ function buildApp() {
     categoryIcon,
     categoryLabel,
     subjectIcon,
+    subjectColor,
     googleClientId: config.googleClientId,
     resetTokenTtlMinutes: config.resetTokenTtlMinutes,
     nextUrl: '', // overridden by /login when it has a "next" target to preserve

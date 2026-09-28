@@ -29,21 +29,21 @@
 
 {% if !showBackToSubjects %}
   <div class="grid grid-4" style="margin-bottom:1.5rem">
-    <div class="stat">
+    <div class="stat stat-accent">
       <div class="stat-value">{{ stats.subjects }}</div>
-      <div class="stat-label">Subject{% if stats.subjects !== 1 %}s{% endif %}</div>
+      <div class="stat-label"><span class="title-icon">📚</span>Subject{% if stats.subjects !== 1 %}s{% endif %}</div>
     </div>
     <div class="stat">
       <div class="stat-value">{{ stats.available }}</div>
-      <div class="stat-label">Papers available</div>
+      <div class="stat-label"><span class="title-icon">📄</span>Papers available</div>
     </div>
-    <div class="stat">
+    <div class="stat stat-good">
       <div class="stat-value">{{ stats.completed }}</div>
-      <div class="stat-label">Papers written</div>
+      <div class="stat-label"><span class="title-icon">✅</span>Papers written</div>
     </div>
-    <div class="stat">
+    <div class="stat {% if stats.averageScore === null %}{% elif stats.averageScore >= 50 %}stat-good{% else %}stat-bad{% endif %}">
       <div class="stat-value">{% if stats.averageScore === null %}—{% else %}{{ stats.averageScore }}%{% endif %}</div>
-      <div class="stat-label">Average score</div>
+      <div class="stat-label"><span class="title-icon">🎯</span>Average score</div>
     </div>
   </div>
 {% endif %}
@@ -61,7 +61,8 @@
   <h2 style="margin-bottom:.8rem">Subjects</h2>
   <div class="grid grid-3">
     {% for subject in subjects %}
-      <a class="subject-card" href="/dashboard?subject={{ encodeURIComponent(subject.name) }}">
+      {% set cardColor = subjectColor(subject.name) %}
+      <a class="subject-card" style="--card-accent: {{ cardColor.accent }}; --card-accent-soft: {{ cardColor.soft }}" href="/dashboard?subject={{ encodeURIComponent(subject.name) }}">
         <div class="subject-head">
           <div class="subject-icon"><span>{{ subjectIcon(subject.name) }}</span></div>
           <h3>{{ subject.label }}</h3>
@@ -94,9 +95,10 @@
 {% else %}
 
   {# One subject: show its papers. #}
+  {% set cardColor = subjectColor(chosen.name) %}
   <div class="grid grid-3">
     {% for exam in chosen.papers %}
-      <article class="exam-card">
+      <article class="exam-card" style="--card-accent: {{ cardColor.accent }}; --card-accent-soft: {{ cardColor.soft }}">
         <div>
           <h3><span class="title-icon">{{ subjectIcon(exam.subject) }}</span> {{ exam.title }}</h3>
           <div class="exam-meta">

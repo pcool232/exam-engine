@@ -17,6 +17,14 @@
   --danger-soft: #fdecee;
   --warning: #9a5b06;
   --warning-soft: #fdf3e2;
+  /* One color per exam level, so PSLE/JC/BGCSE stay visually distinct
+     wherever they appear side by side (category tiles, badges). */
+  --psle: #b8551f;
+  --psle-soft: #fbe7d9;
+  --jc: #0d7a7c;
+  --jc-soft: #dff3f3;
+  --bgcse: #5f3b95;
+  --bgcse-soft: #efe7fa;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 4px 12px rgba(16, 24, 40, .04);
@@ -177,6 +185,15 @@ p { margin: 0 0 .75rem; }
 }
 .stat-value { font-size: 1.55rem; font-weight: 680; letter-spacing: -.02em; line-height: 1.1; }
 .stat-label { color: var(--text-muted); font-size: .82rem; margin-top: .15rem; }
+.stat-label .title-icon { margin-right: .25rem; font-size: .95em; }
+/* A little color so the dashboard reads as "how am I doing" at a glance,
+   not a row of identical grey tiles. */
+.stat-accent { background: var(--accent-soft); border-color: #ccd7fb; }
+.stat-accent .stat-value { color: var(--accent-dark); }
+.stat-good { background: var(--success-soft); border-color: #bfe3d0; }
+.stat-good .stat-value { color: var(--success); }
+.stat-bad { background: var(--danger-soft); border-color: #f3c8ce; }
+.stat-bad .stat-value { color: var(--danger); }
 
 /* ------------------------------------------------------------ buttons -- */
 
@@ -270,6 +287,9 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mono
   background: var(--danger); color: #fff; border-color: var(--danger);
   padding: .05rem .4rem; font-size: .7rem; min-width: 1.1em; text-align: center;
 }
+.badge-cat-PSLE { background: var(--psle-soft); color: var(--psle); border-color: #f0d2b8; }
+.badge-cat-JC { background: var(--jc-soft); color: var(--jc); border-color: #bfe4e4; }
+.badge-cat-BGCSE { background: var(--bgcse-soft); color: var(--bgcse); border-color: #dccbf2; }
 
 /* ------------------------------------------------------------- inbox -- */
 
@@ -365,11 +385,24 @@ td.actions > * { margin-left: .5rem; }
 .category-tile:hover .category-tile-icon { animation: icon-wiggle .5s ease-in-out; }
 .category-tile input:focus-visible ~ * { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Each exam level keeps its own color rather than the generic accent blue,
+   so PSLE/JC/BGCSE read as distinct choices, not three copies of one tile. */
+.category-tile[data-category="PSLE"]:hover { border-color: var(--psle); }
+.category-tile[data-category="PSLE"].is-selected,
+.category-tile[data-category="PSLE"]:has(input:checked) { border-color: var(--psle); background: var(--psle-soft); }
+.category-tile[data-category="JC"]:hover { border-color: var(--jc); }
+.category-tile[data-category="JC"].is-selected,
+.category-tile[data-category="JC"]:has(input:checked) { border-color: var(--jc); background: var(--jc-soft); }
+.category-tile[data-category="BGCSE"]:hover { border-color: var(--bgcse); }
+.category-tile[data-category="BGCSE"].is-selected,
+.category-tile[data-category="BGCSE"]:has(input:checked) { border-color: var(--bgcse); background: var(--bgcse-soft); }
+
 /* -------------------------------------------------------- exam cards -- */
 
 .subject-card {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--card-accent, var(--border));
   border-radius: var(--radius);
   padding: 1.1rem;
   display: flex;
@@ -382,9 +415,11 @@ td.actions > * { margin-left: .5rem; }
 }
 .subject-card:hover {
   text-decoration: none;
-  border-color: var(--accent);
+  border-color: var(--card-accent, var(--accent));
   transform: translateY(-1px);
 }
+.subject-card .subject-icon { background: var(--card-accent-soft, var(--accent-soft)); }
+.subject-card .progress > span { background: var(--card-accent, var(--accent)); }
 .subject-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
 .subject-head h3 { margin: 0; flex: 1; }
 .subject-icon {
@@ -446,6 +481,7 @@ h3:hover .title-icon { animation: icon-wiggle .5s ease-in-out; }
 .exam-card {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--card-accent, var(--border));
   border-radius: var(--radius);
   padding: 1.1rem;
   display: flex; flex-direction: column; gap: .6rem;

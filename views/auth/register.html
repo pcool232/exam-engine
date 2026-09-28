@@ -36,7 +36,7 @@
         <label>Which exam are you revising for?</label>
         <div class="category-picker">
           {% for c in categories %}
-            <label class="category-tile {% if values.category === c %}is-selected{% endif %}">
+            <label class="category-tile {% if values.category === c %}is-selected{% endif %}" data-category="{{ c }}">
               <input type="radio" name="category" value="{{ c }}" {% if values.category === c %}checked{% endif %} required>
               <span class="category-tile-icon">{{ categoryIcon(c) }}</span>
               <span class="category-tile-code">{{ c }}</span>
