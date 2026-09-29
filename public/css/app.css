@@ -1,4 +1,4 @@
-/* Prepa - single stylesheet, no build step. */
+/* Rivaesa - single stylesheet, no build step. */
 
 :root {
   --bg: #f5f6f8;
@@ -8,9 +8,9 @@
   --border-strong: #cbd1da;
   --text: #1c2431;
   --text-muted: #5d6779;
-  --accent: #059669;
-  --accent-dark: #047857;
-  --accent-soft: #e6f6ef;
+  --accent: #0E7490;
+  --accent-dark: #155E75;
+  --accent-soft: #E3F2F5;
   --success: #17794a;
   --success-soft: #e7f6ee;
   --danger: #b22638;
