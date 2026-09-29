@@ -79,7 +79,7 @@ function readExamSettings(data) {
   const subject = firstDefined(source, ['subject', 'course']);
   if (subject !== undefined) settings.subject = String(subject).trim();
 
-  // Which exam this paper belongs to: PSLE, JC or BGCSE.
+  // Which exam this paper belongs to: PSLE, JC, BGCSE or IGCSE.
   const category = firstDefined(source, ['category', 'level', 'examLevel', 'exam_level']);
   if (category !== undefined) settings.category = String(category).trim().toUpperCase();
 

@@ -5,7 +5,7 @@ const { get, all, run } = require('../db');
 const { hashPassword, verifyPassword } = require('../lib/password');
 
 /** The exam levels Botswana students revise for. */
-const CATEGORIES = ['PSLE', 'JC', 'BGCSE'];
+const CATEGORIES = ['PSLE', 'JC', 'BGCSE', 'IGCSE'];
 
 function cleanCategory(value) {
   const v = String(value || '').trim().toUpperCase();

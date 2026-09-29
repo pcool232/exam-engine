@@ -8,15 +8,17 @@ const CATEGORY_ICONS = {
   PSLE: '🎒',
   JC: '📗',
   BGCSE: '🎓',
+  IGCSE: '🌍',
 };
 
 const CATEGORY_LABELS = {
   PSLE: 'Primary School Leaving Examination',
   JC: 'Junior Certificate',
   BGCSE: 'Botswana General Certificate of Secondary Education',
+  IGCSE: 'International General Certificate of Secondary Education',
 };
 
-/** Icon for a Botswana exam level/category (PSLE / JC / BGCSE). */
+/** Icon for a Botswana exam level/category (PSLE / JC / BGCSE / IGCSE). */
 function categoryIcon(category) {
   const key = String(category || '').trim().toUpperCase();
   return CATEGORY_ICONS[key] || '🏫';

@@ -18,7 +18,7 @@
   --danger-soft: #fdecee;
   --warning: #9a5b06;
   --warning-soft: #fdf3e2;
-  /* One color per exam level, so PSLE/JC/BGCSE stay visually distinct
+  /* One color per exam level, so PSLE/JC/BGCSE/IGCSE stay visually distinct
      wherever they appear side by side (category tiles, badges). */
   --psle: #b8551f;
   --psle-soft: #fbe7d9;
@@ -26,6 +26,8 @@
   --jc-soft: #dff3f3;
   --bgcse: #5f3b95;
   --bgcse-soft: #efe7fa;
+  --igcse: #1d6f42;
+  --igcse-soft: #e2f3e9;
   --radius: 10px;
   --radius-sm: 6px;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 4px 12px rgba(16, 24, 40, .04);
@@ -292,6 +294,7 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mono
 .badge-cat-PSLE { background: var(--psle-soft); color: var(--psle); border-color: #f0d2b8; }
 .badge-cat-JC { background: var(--jc-soft); color: var(--jc); border-color: #bfe4e4; }
 .badge-cat-BGCSE { background: var(--bgcse-soft); color: var(--bgcse); border-color: #dccbf2; }
+.badge-cat-IGCSE { background: var(--igcse-soft); color: var(--igcse); border-color: #bfe0cc; }
 
 /* ------------------------------------------------------------- inbox -- */
 
@@ -436,7 +439,7 @@ td.actions > * { margin-left: .5rem; }
 .category-tile input:focus-visible ~ * { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Each exam level keeps its own color rather than the generic accent blue,
-   so PSLE/JC/BGCSE read as distinct choices, not three copies of one tile. */
+   so PSLE/JC/BGCSE/IGCSE read as distinct choices, not four copies of one tile. */
 .category-tile[data-category="PSLE"]:hover { border-color: var(--psle); }
 .category-tile[data-category="PSLE"].is-selected,
 .category-tile[data-category="PSLE"]:has(input:checked) { border-color: var(--psle); background: var(--psle-soft); }
@@ -446,6 +449,9 @@ td.actions > * { margin-left: .5rem; }
 .category-tile[data-category="BGCSE"]:hover { border-color: var(--bgcse); }
 .category-tile[data-category="BGCSE"].is-selected,
 .category-tile[data-category="BGCSE"]:has(input:checked) { border-color: var(--bgcse); background: var(--bgcse-soft); }
+.category-tile[data-category="IGCSE"]:hover { border-color: var(--igcse); }
+.category-tile[data-category="IGCSE"].is-selected,
+.category-tile[data-category="IGCSE"]:has(input:checked) { border-color: var(--igcse); background: var(--igcse-soft); }
 
 /* -------------------------------------------------------- exam cards -- */
 

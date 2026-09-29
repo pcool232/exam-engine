@@ -126,7 +126,7 @@ function register(app) {
     const values = examFormValues(req.body);
     const errors = [];
     if (!String(values.title || '').trim()) errors.push('The exam needs a title.');
-    if (!users.cleanCategory(values.category)) errors.push('Choose which exam level this paper is for (PSLE, JC or BGCSE).');
+    if (!users.cleanCategory(values.category)) errors.push('Choose which exam level this paper is for (PSLE, JC, BGCSE or IGCSE).');
 
     if (errors.length > 0) {
       return res.status(400).render('admin/exam-form', {
@@ -187,7 +187,7 @@ function register(app) {
     const values = examFormValues(req.body);
     const errors = [];
     if (!String(values.title || '').trim()) errors.push('The exam needs a title.');
-    if (!users.cleanCategory(values.category)) errors.push('Choose which exam level this paper is for (PSLE, JC or BGCSE).');
+    if (!users.cleanCategory(values.category)) errors.push('Choose which exam level this paper is for (PSLE, JC, BGCSE or IGCSE).');
     if (errors.length > 0) {
       return res.status(400).render('admin/exam-form', {
         subjects: await exams.subjectsInUse(),
@@ -510,7 +510,7 @@ function register(app) {
       return res.redirect(`/admin/import/preview?t=${pending.token}`);
     }
     if (!users.cleanCategory(req.body.category)) {
-      setFlash(req, 'error', 'Choose which exam level this paper is for (PSLE, JC or BGCSE).');
+      setFlash(req, 'error', 'Choose which exam level this paper is for (PSLE, JC, BGCSE or IGCSE).');
       return res.redirect(`/admin/import/preview?t=${pending.token}`);
     }
 

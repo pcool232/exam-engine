@@ -63,11 +63,11 @@ if (!settings.title) {
   process.exit(1);
 }
 
-const VALID_CATEGORIES = new Set(['PSLE', 'JC', 'BGCSE']);
+const VALID_CATEGORIES = new Set(['PSLE', 'JC', 'BGCSE', 'IGCSE']);
 const category = String(settings.category || '').trim().toUpperCase();
 if (!VALID_CATEGORIES.has(category)) {
-  console.error(`This file's "exam.category" is missing or not one of PSLE / JC / BGCSE (got: ${settings.category || '(none)'}).`);
-  console.error('Add "exam": { "category": "JC" } (or PSLE / BGCSE) to the JSON -- students only ever see papers for their own level, so an exam without one would never appear to anyone.');
+  console.error(`This file's "exam.category" is missing or not one of PSLE / JC / BGCSE / IGCSE (got: ${settings.category || '(none)'}).`);
+  console.error('Add "exam": { "category": "JC" } (or PSLE / BGCSE / IGCSE) to the JSON -- students only ever see papers for their own level, so an exam without one would never appear to anyone.');
   process.exit(1);
 }
 

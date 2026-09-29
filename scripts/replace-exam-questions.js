@@ -70,10 +70,10 @@ if (!settings.title) {
   process.exit(1);
 }
 
-const VALID_CATEGORIES = new Set(['PSLE', 'JC', 'BGCSE']);
+const VALID_CATEGORIES = new Set(['PSLE', 'JC', 'BGCSE', 'IGCSE']);
 const category = String(settings.category || '').trim().toUpperCase();
 if (!VALID_CATEGORIES.has(category)) {
-  console.error(`This file's "exam.category" is missing or not one of PSLE / JC / BGCSE (got: ${settings.category || '(none)'}).`);
+  console.error(`This file's "exam.category" is missing or not one of PSLE / JC / BGCSE / IGCSE (got: ${settings.category || '(none)'}).`);
   process.exit(1);
 }
 

@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -67,7 +67,7 @@ const SCHEMA_STATEMENTS = [
     password_hash  TEXT    NOT NULL,
     role           TEXT    NOT NULL DEFAULT 'student' CHECK (role IN ('student','admin')),
     student_number TEXT,
-    category       TEXT    CHECK (category IN ('PSLE','JC','BGCSE')),
+    category       TEXT    CHECK (category IN ('PSLE','JC','BGCSE','IGCSE')),
     google_sub     TEXT,
     is_active      INTEGER NOT NULL DEFAULT 1,
     created_at     TEXT    NOT NULL DEFAULT (TO_CHAR(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'))
@@ -83,7 +83,7 @@ const SCHEMA_STATEMENTS = [
     title                 TEXT    NOT NULL,
     exam_code             TEXT,
     subject               TEXT,
-    category              TEXT    CHECK (category IN ('PSLE','JC','BGCSE')),
+    category              TEXT    CHECK (category IN ('PSLE','JC','BGCSE','IGCSE')),
     description           TEXT,
     year                  TEXT,
     duration_minutes      INTEGER NOT NULL DEFAULT 60,
@@ -202,12 +202,12 @@ const SCHEMA_STATEMENTS = [
  */
 const COLUMN_MIGRATIONS = [
   { table: 'questions', column: 'image', definition: 'TEXT' },
-  // Exam level: Primary Leaving (PSLE), Junior Certificate (JC), or BGCSE.
-  // No NOT NULL here -- existing rows land as NULL and the app gates on that
-  // (students are asked to pick one; exams with no category are hidden from
-  // students until an administrator sets one).
-  { table: 'users', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE'))" },
-  { table: 'exams', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE'))" },
+  // Exam level: Primary Leaving (PSLE), Junior Certificate (JC), BGCSE, or
+  // IGCSE. No NOT NULL here -- existing rows land as NULL and the app gates
+  // on that (students are asked to pick one; exams with no category are
+  // hidden from students until an administrator sets one).
+  { table: 'users', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE','IGCSE'))" },
+  { table: 'exams', column: 'category', definition: "TEXT CHECK (category IN ('PSLE','JC','BGCSE','IGCSE'))" },
   // "Sign in with Google" -- the account's stable Google user id, once linked.
   { table: 'users', column: 'google_sub', definition: 'TEXT' },
   // Pass mark frozen at attempt-start time, same reasoning as question_ids/
@@ -338,6 +338,16 @@ async function applyMigrations() {
   // unconditionally rather than needing its own column-exists-style guard.
   await rawQuery('ALTER TABLE inbox_messages DROP CONSTRAINT IF EXISTS inbox_messages_kind_check');
   await rawQuery("ALTER TABLE inbox_messages ADD CONSTRAINT inbox_messages_kind_check CHECK (kind IN ('welcome','exam','admin'))");
+
+  // Same idea for users.category/exams.category (schema version 7 added
+  // 'IGCSE') -- an existing database's CHECK constraint still only allows
+  // ('PSLE','JC','BGCSE'), so widen it by hand. Postgres names an unnamed
+  // inline CHECK added via SCHEMA_STATEMENTS/COLUMN_MIGRATIONS
+  // "<table>_<column>_check" by default, so that's the name dropped here.
+  await rawQuery('ALTER TABLE users DROP CONSTRAINT IF EXISTS users_category_check');
+  await rawQuery("ALTER TABLE users ADD CONSTRAINT users_category_check CHECK (category IN ('PSLE','JC','BGCSE','IGCSE'))");
+  await rawQuery('ALTER TABLE exams DROP CONSTRAINT IF EXISTS exams_category_check');
+  await rawQuery("ALTER TABLE exams ADD CONSTRAINT exams_category_check CHECK (category IN ('PSLE','JC','BGCSE','IGCSE'))");
 }
 
 let ready = null;

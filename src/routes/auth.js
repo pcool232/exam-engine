@@ -316,7 +316,7 @@ function register(app) {
     const errors = [];
     if (values.fullName.length < 2) errors.push('Please enter your full name.');
     if (!EMAIL_PATTERN.test(values.email)) errors.push('Please enter a valid email address.');
-    if (!users.cleanCategory(values.category)) errors.push('Choose which exam you are revising for: PSLE, JC or BGCSE.');
+    if (!users.cleanCategory(values.category)) errors.push('Choose which exam you are revising for: PSLE, JC, BGCSE or IGCSE.');
     const strength = checkPasswordStrength(password);
     if (strength) errors.push(strength);
     if (password !== confirmPassword) errors.push('The two passwords do not match.');
@@ -380,7 +380,7 @@ function register(app) {
         title: req.user.category ? 'Change exam level' : 'Choose your exam',
         categories: users.CATEGORIES,
         isFirstTime: !req.user.category,
-        errors: ['Choose PSLE, JC or BGCSE.'],
+        errors: ['Choose PSLE, JC, BGCSE or IGCSE.'],
       });
     }
 
