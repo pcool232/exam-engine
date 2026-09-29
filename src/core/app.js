@@ -6,7 +6,17 @@
  */
 
 const http = require('node:http');
+const zlib = require('node:zlib');
 const { parseBody } = require('./body');
+
+// Compressing a rendered page is most of what a slow or patchy connection
+// pays for on this app -- there's no client-side framework and no build
+// step, so every page is a full server-rendered HTML document (see
+// TemplateEngine), some of them (the exam runner, the admin exam list)
+// large enough that gzip -- built into Node, no dependency -- shrinks them
+// by 70%+ . Skip anything small enough that gzip's own framing overhead
+// would net negative.
+const COMPRESS_MIN_BYTES = 1024;
 
 function compilePath(pattern) {
   const keys = [];
@@ -102,8 +112,16 @@ class App {
     // running once a handler function returns.
     res.send = (body, contentType = 'text/html; charset=utf-8') => {
       if (res.writableEnded) return res;
-      const payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf8');
+      let payload = Buffer.isBuffer(body) ? body : Buffer.from(String(body), 'utf8');
       res.setHeader('Content-Type', contentType);
+
+      const acceptsGzip = /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+      if (acceptsGzip && payload.length >= COMPRESS_MIN_BYTES && /^text\/|^application\/json/.test(contentType)) {
+        payload = zlib.gzipSync(payload);
+        res.setHeader('Content-Encoding', 'gzip');
+        res.setHeader('Vary', 'Accept-Encoding');
+      }
+
       res.setHeader('Content-Length', payload.length);
       return res.end(req.method === 'HEAD' ? undefined : payload);
     };

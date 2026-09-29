@@ -3,6 +3,14 @@
       data-seconds="{{ secondsRemaining === null ? '' : secondsRemaining }}">
   <input type="hidden" name="_csrf" value="{{ csrfToken }}">
 
+  <!-- Toggled by public/js/attempt.js via the browser's online/offline
+       events. Hidden by default (rather than starting shown and getting
+       hidden on load) so a student on a normal connection never sees it
+       flash on the very first paint. -->
+  <div class="notice notice-warning conn-banner" id="connBanner" role="status" hidden>
+    You're offline. Your answers stay on this page and will save automatically once you reconnect.
+  </div>
+
   <div class="page-head">
     <div>
       <h1>{{ exam.title }}</h1>
@@ -109,4 +117,4 @@
   </div>
 </form>
 
-<script src="/static/js/attempt.js" defer></script>
+<script src="/static/js/attempt.js?v={{ assetVersion }}" defer></script>

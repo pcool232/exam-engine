@@ -32,6 +32,15 @@ const config = {
   port: Number(process.env.PORT || 3000),
   host: process.env.HOST || '0.0.0.0',
   env: process.env.NODE_ENV || 'development',
+  // Appended as `?v=` on every /static/... link (see partials/layout.html
+  // and the auth/attempt pages) so static assets can be cached hard on the
+  // student's device -- see src/core/static.js -- without ever serving a
+  // stale file after a deploy: the query string, not the URL path, is what
+  // changes, so the browser treats a new deploy as a new resource. Vercel
+  // sets VERCEL_GIT_COMMIT_SHA on every deployment; local dev (where static
+  // caching is off anyway, see app.js) falls back to the process start time
+  // so repeated `npm start` runs still bust any leftover browser cache.
+  assetVersion: process.env.VERCEL_GIT_COMMIT_SHA || String(Date.now()),
   // The database, via `pg` -- a PostgreSQL connection string. Supabase gives
   // you this under Project Settings -> Database -> Connection string.
   //

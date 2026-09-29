@@ -31,6 +31,7 @@ function buildApp() {
     categoryLabel,
     subjectIcon,
     subjectColor,
+    assetVersion: config.assetVersion,
     googleClientId: config.googleClientId,
     resetTokenTtlMinutes: config.resetTokenTtlMinutes,
     nextUrl: '', // overridden by /login when it has a "next" target to preserve
@@ -64,7 +65,12 @@ function buildApp() {
     await next();
   });
 
-  app.use(serveStatic(config.publicDir, { urlPrefix: '/static', maxAge: config.isProduction ? 86400 : 0 }));
+  // A full year: every /static/... link now carries ?v={{ assetVersion }}
+  // (see config.js), which changes on every deploy, so a long-lived cache
+  // here can never serve last week's CSS by mistake -- and a hard cache hit
+  // (no request at all, not even a 304 round trip) is what actually helps a
+  // student on a slow or patchy connection revisiting the site.
+  app.use(serveStatic(config.publicDir, { urlPrefix: '/static', maxAge: config.isProduction ? 31536000 : 0 }));
   app.use(bodyParser);
   app.use(sessionMiddleware({
     ttlSeconds: config.sessionTtlSeconds,

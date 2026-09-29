@@ -171,7 +171,16 @@ function register(app) {
     await attempts.submitAttempt(attempt, new Map(saved));
   }
 
-  /** Background save of a single answer (called by the browser as you click). */
+  /**
+   * Background save of one or more answers (called by the browser as you
+   * click). Accepts either a single `{questionId, selected}` (kept for any
+   * caller sending the old shape) or a batch `{answers: [{questionId,
+   * selected}, ...]}` -- public/js/attempt.js sends a batch so a student
+   * who answers several questions in a row on a slow or patchy connection
+   * makes one round trip instead of one per question, which matters far
+   * more than the payload size does on a link where each request has real
+   * odds of timing out or queuing behind others.
+   */
   app.post('/attempts/:id/answer', requireStudent, async (req, res) => {
     const attempt = await attempts.findAttempt(req.params.id);
     if (!attempt || attempt.user_id !== req.user.id) return res.json({ ok: false }, 404);
@@ -182,12 +191,21 @@ function register(app) {
       return res.json({ ok: false, reason: 'expired' }, 409);
     }
 
-    const questionId = Number(req.body.questionId);
-    if (!attempt.questionIds.includes(questionId)) return res.json({ ok: false }, 400);
+    const batch = Array.isArray(req.body.answers)
+      ? req.body.answers
+      : [{ questionId: req.body.questionId, selected: req.body.selected }];
 
-    const selected = Array.isArray(req.body.selected) ? req.body.selected : [];
-    await attempts.saveAnswer(attempt.id, questionId, selected);
-    return res.json({ ok: true });
+    const saved = [];
+    for (const entry of batch) {
+      const questionId = Number(entry && entry.questionId);
+      if (!attempt.questionIds.includes(questionId)) continue;
+      const selected = Array.isArray(entry.selected) ? entry.selected : [];
+      await attempts.saveAnswer(attempt.id, questionId, selected);
+      saved.push(questionId);
+    }
+
+    if (saved.length === 0) return res.json({ ok: false }, 400);
+    return res.json({ ok: true, saved });
   });
 
   app.post('/attempts/:id/submit', requireStudent, async (req, res) => {

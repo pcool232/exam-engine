@@ -9,7 +9,20 @@
   var csrfToken = form.querySelector('input[name="_csrf"]').value;
   var saveState = document.getElementById('saveState');
   var answeredCount = document.getElementById('answeredCount');
+  var connBanner = document.getElementById('connBanner');
   var submitting = false;
+
+  /* -------------------------------------------------- connection status -- */
+
+  function updateConnBanner() {
+    if (connBanner) connBanner.hidden = navigator.onLine !== false;
+  }
+  window.addEventListener('offline', function () {
+    updateConnBanner();
+    setSaveState('offline — answers stay on this page and will sync once you reconnect');
+  });
+  window.addEventListener('online', updateConnBanner);
+  updateConnBanner();
 
   var questions = Array.prototype.slice.call(document.querySelectorAll('.question'));
   var navLinks = {};
@@ -111,50 +124,112 @@
   }
 
   /* ----------------------------------------------------------- auto-save -- */
+  /*
+   * Built for a slow or patchy connection, where the two things that go
+   * wrong are: (1) a lot of small requests queue up behind each other or
+   * time out one by one, and (2) a request that does fail gets silently
+   * dropped instead of retried, so an answer looks saved in the UI but
+   * never reaches the server. Both are addressed here:
+   *   - every question changed since the last flush goes out in one POST
+   *     (see the matching batch support in routes/student.js), so jumping
+   *     through several questions costs one round trip, not several;
+   *   - a failed or timed-out send leaves its answers in `pending` instead
+   *     of discarding them, and is retried with backoff and again
+   *     immediately on the browser's `online` event;
+   *   - each send is capped at 8s (AbortController) so a stalled request on
+   *     a bad connection fails fast into a retry rather than sitting there
+   *     with no feedback.
+   */
 
   var pending = {};
   var saveTimer = null;
+  var sending = false;
+  var backoffMs = 2000;
+  var SAVE_TIMEOUT_MS = 8000;
 
   function setSaveState(text) {
     if (saveState) saveState.textContent = text;
   }
 
+  function scheduleFlush(delay) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSaves, delay);
+  }
+
   function flushSaves() {
+    if (sending) return;
     var ids = Object.keys(pending);
     if (ids.length === 0) return;
 
-    var queue = ids.map(function (id) { return { id: id, selected: pending[id] }; });
-    pending = {};
+    if (navigator.onLine === false) {
+      setSaveState('offline — answers stay on this page and will sync once you reconnect');
+      scheduleFlush(3000);
+      return;
+    }
+
+    // Snapshot which array each id currently points at. A change that
+    // arrives while this request is in flight replaces pending[id] with a
+    // new array (see queueSave), so after the response comes back a plain
+    // reference check tells us which ids are still exactly what we sent --
+    // those are safe to clear -- versus which were edited again in the
+    // meantime and must stay queued for the next flush.
+    var snapshot = {};
+    ids.forEach(function (id) { snapshot[id] = pending[id]; });
+
+    sending = true;
     setSaveState('saving…');
 
-    var remaining = queue.length;
-    var failed = false;
+    var hasAbort = typeof AbortController !== 'undefined';
+    var controller = hasAbort ? new AbortController() : null;
+    var timeoutId = hasAbort ? setTimeout(function () { controller.abort(); }, SAVE_TIMEOUT_MS) : null;
 
-    queue.forEach(function (item) {
-      fetch('/attempts/' + attemptId + '/answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-        body: JSON.stringify({ questionId: Number(item.id), selected: item.selected }),
-        credentials: 'same-origin',
-      }).then(function (response) {
-        if (!response.ok) failed = true;
-      }).catch(function () {
-        failed = true;
-      }).finally(function () {
-        remaining--;
-        if (remaining === 0) {
-          setSaveState(failed ? 'not saved — your answers are still in this page' : 'up to date');
-        }
+    fetch('/attempts/' + attemptId + '/answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({
+        answers: ids.map(function (id) { return { questionId: Number(id), selected: snapshot[id] }; }),
+      }),
+      credentials: 'same-origin',
+      signal: controller ? controller.signal : undefined,
+    }).then(function (response) {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (!response.ok) throw new Error('http ' + response.status);
+      return response.json().catch(function () { return {}; });
+    }).then(function (data) {
+      if (!data || data.ok === false) throw new Error((data && data.reason) || 'save rejected');
+
+      ids.forEach(function (id) {
+        if (pending[id] === snapshot[id]) delete pending[id];
       });
+      backoffMs = 2000;
+      sending = false;
+
+      if (Object.keys(pending).length > 0) {
+        scheduleFlush(200); // more was queued while this request was in flight
+      } else {
+        setSaveState('up to date');
+      }
+    }).catch(function () {
+      if (timeoutId) clearTimeout(timeoutId);
+      sending = false;
+      setSaveState('not saved yet — retrying…');
+      backoffMs = Math.min(backoffMs * 1.5, 15000);
+      scheduleFlush(backoffMs);
     });
   }
 
   function queueSave(questionId) {
     pending[questionId] = selectionFor(questionId);
     setSaveState('saving…');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(flushSaves, 400);
+    scheduleFlush(400);
   }
+
+  // A request that failed while the tab was in the background, or while
+  // offline, shouldn't have to wait out a long backoff once things recover.
+  window.addEventListener('online', function () {
+    backoffMs = 2000;
+    flushSaves();
+  });
 
   form.addEventListener('change', function (event) {
     var input = event.target;
@@ -218,6 +293,18 @@
 
   form.addEventListener('submit', function (event) {
     if (submitting) return;
+
+    // A manual submit while offline would otherwise hang as a normal page
+    // navigation with no feedback until (if ever) the browser gives up --
+    // confusing mid-exam. The auto-submit-at-time-up path below bypasses
+    // this event (it calls form.submit() directly), so a real deadline
+    // still fires the browser's own retry-on-reconnect navigation behaviour
+    // rather than silently doing nothing.
+    if (navigator.onLine === false) {
+      event.preventDefault();
+      alert('You appear to be offline. Your answers are saved on this page -- reconnect and press "Submit and mark" again.');
+      return;
+    }
 
     var total = questions.length;
     var answered = Number(answeredCount ? answeredCount.textContent : total);
