@@ -1,4 +1,4 @@
-/* Revision Engine - single stylesheet, no build step. */
+/* Prepa - single stylesheet, no build step. */
 
 :root {
   --bg: #f5f6f8;
@@ -8,9 +8,9 @@
   --border-strong: #cbd1da;
   --text: #1c2431;
   --text-muted: #5d6779;
-  --accent: #1f4ed8;
-  --accent-dark: #1739a8;
-  --accent-soft: #eef2ff;
+  --accent: #059669;
+  --accent-dark: #047857;
+  --accent-soft: #e6f6ef;
   --success: #17794a;
   --success-soft: #e7f6ee;
   --danger: #b22638;
@@ -80,8 +80,9 @@ p { margin: 0 0 .75rem; }
   width: 30px; height: 30px;
   border-radius: 8px;
   background: var(--accent); color: #fff;
-  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  flex: none;
 }
+.brand-mark svg { width: 55%; height: auto; }
 .brand-name { font-size: .97rem; }
 
 .topnav { display: flex; gap: .25rem; margin-left: auto; align-items: center; flex-wrap: wrap; }

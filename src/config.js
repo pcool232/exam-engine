@@ -52,7 +52,7 @@ const config = {
   sessionTtlSeconds: Number(process.env.SESSION_TTL_HOURS || 12) * 3600,
   // Set COOKIE_SECURE=true when serving over HTTPS.
   cookieSecure: String(process.env.COOKIE_SECURE || 'false').toLowerCase() === 'true',
-  appName: process.env.APP_NAME || 'Revision Engine',
+  appName: process.env.APP_NAME || 'Prepa',
   // Seed admin (used by `npm run seed`).
   seedAdminEmail: process.env.ADMIN_EMAIL || 'admin@revision.local',
   seedAdminPassword: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
