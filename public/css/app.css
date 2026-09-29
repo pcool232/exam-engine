@@ -321,10 +321,58 @@ td.actions > * { margin-left: .5rem; }
 /* ---------------------------------------------------------- auth page -- */
 
 .auth-wrap { max-width: 420px; margin: 3rem auto; }
+.hero-band + .auth-wrap { margin-top: 1.5rem; }
 .auth-wrap .card { padding: 1.6rem; }
 .auth-head { text-align: center; margin-bottom: 1.4rem; }
 .auth-head .brand-mark { width: 40px; height: 40px; font-size: .95rem; margin: 0 auto .7rem; }
 .auth-alt { text-align: center; margin-top: 1rem; font-size: .88rem; color: var(--text-muted); }
+
+.hero-band {
+  position: relative;
+  overflow: hidden;
+  max-width: 420px;
+  margin: 2rem auto 0;
+  padding: 2rem 1.6rem 1.6rem;
+  border-radius: 20px;
+  background: #0B1F26;
+  color: #F2FAFB;
+  text-align: center;
+}
+.hero-glow {
+  position: absolute;
+  width: 260px; height: 260px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: .18;
+  top: -120px; right: -80px;
+}
+.hero-mark {
+  position: relative;
+  width: 56px; height: 56px;
+  border-radius: 16px;
+  background: var(--accent-dark);
+  display: grid; place-items: center;
+  margin: 0 auto .9rem;
+  box-shadow: 0 8px 18px rgba(0,0,0,.35);
+}
+.hero-mark svg { width: 60%; height: auto; }
+.hero-title {
+  position: relative;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  margin-bottom: .3rem;
+}
+.hero-tagline { position: relative; color: #C9DEE2; font-size: .92rem; margin-bottom: 1rem; }
+.hero-pills { position: relative; display: flex; justify-content: center; gap: .5rem; flex-wrap: wrap; }
+.hero-pill {
+  padding: .4rem .85rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: #E7F1F3;
+  font-size: .78rem;
+}
 
 .auth-divider {
   display: flex;
