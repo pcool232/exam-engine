@@ -150,6 +150,25 @@ a{color:#0E7490}a:hover{color:#155E75}
 .foot a{color:#B9D3D9;text-decoration:none}
 .foot a:hover{color:#FFFFFF}
 
+/* exam day photo section */
+.examday{position:relative;overflow:hidden;background:#0B1F26;color:#FFFFFF;min-height:640px;display:flex;align-items:center}
+.examday-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:60% 40%;transform-origin:65% 45%;animation:kenburns 24s ease-in-out infinite alternate}
+@keyframes kenburns{from{transform:scale(1.02)}to{transform:scale(1.14) translate(-1.5%,-1%)}}
+.examday-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,31,38,.94) 0%,rgba(11,31,38,.82) 38%,rgba(11,31,38,.25) 72%,rgba(11,31,38,.15) 100%)}
+.examday-inner{position:relative;width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;padding-top:120px;padding-bottom:120px}
+.examday-copy{max-width:600px}
+.examday-title{margin-top:16px;color:#FFFFFF}
+.examday-title em{font-style:normal;color:#5FD3E6}
+.examday-lede{font-size:19px;line-height:1.6;color:#D3E7EC;margin:22px 0 0;max-width:540px}
+.examday-chip{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:18px;background:rgba(11,31,38,.72);border:1px solid rgba(143,227,240,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:float 7s ease-in-out infinite;flex-shrink:0}
+.examday-credit{position:absolute;right:16px;bottom:10px;margin:0;font-size:11px;color:rgba(255,255,255,.6)}
+@media (max-width:980px){
+.examday-shade{background:linear-gradient(0deg,rgba(11,31,38,.96) 0%,rgba(11,31,38,.85) 55%,rgba(11,31,38,.35) 100%)}
+.examday-inner{flex-direction:column;align-items:flex-start;padding-top:260px;padding-bottom:80px}
+.examday-chip{display:none}
+.examday-photo{object-position:72% 70%}
+}
+
 @media (max-width:980px){
 .herogrid,.demogrid,.offgrid,.admingrid{grid-template-columns:1fr}
 .fgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
