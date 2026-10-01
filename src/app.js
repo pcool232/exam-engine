@@ -82,7 +82,10 @@ function buildApp() {
   /* ------------------------------------------------------------ routes -- */
 
   app.get('/', (req, res) => {
-    if (!req.user) return res.redirect('/login');
+    // Signed-out visitors get the public landing page (views/landing.html,
+    // a full standalone document -- hence no layout); signed-in users go
+    // straight to where they work, as before.
+    if (!req.user) return res.render('landing', {}, null);
     return res.redirect(req.user.role === 'admin' ? '/admin' : '/dashboard');
   });
 
