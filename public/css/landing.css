@@ -164,19 +164,17 @@ a{color:#0E7490}a:hover{color:#155E75}
 .examday-lede{font-size:19px;line-height:1.6;color:#D3E7EC;margin:22px 0 0;max-width:540px}
 .examday-chip{display:flex;align-items:center;gap:14px;padding:16px 20px;border-radius:18px;background:rgba(11,31,38,.72);border:1px solid rgba(143,227,240,.35);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:float 7s ease-in-out infinite;flex-shrink:0}
 .examday-credit{position:absolute;right:16px;bottom:10px;margin:0;font-size:11px;color:rgba(255,255,255,.6)}
-/* hero photo (replaces the exam-card mock; that lives in the demo section) */
-.fade{opacity:0;animation:fadein 1.1s ease .3s forwards}
-@keyframes fadein{to{opacity:1}}
-.herophoto{position:absolute;top:0;right:4%;bottom:56px;left:6%;margin:0;border-radius:28px;overflow:hidden;background:#12313A;box-shadow:0 40px 80px -30px rgba(0,0,0,.65);outline:1px solid rgba(143,227,240,.18);outline-offset:-1px}
-.herophoto-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:62% 48%}
-.herophoto::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,31,38,0) 55%,rgba(11,31,38,.55) 100%);pointer-events:none}
-.herocredit{position:absolute;left:16px;bottom:10px;font-size:11px;color:rgba(255,255,255,.75)}
-.herochip{position:absolute;left:0;top:36px;display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;background:rgba(11,31,38,.82);border:1px solid rgba(143,227,240,.35);color:#5FD3E6;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);box-shadow:0 20px 40px -20px rgba(0,0,0,.6);animation:float 7s ease-in-out -2s infinite}
+/* hero background photo: students behind the headline, under a teal wash */
+.herobg{position:absolute;inset:0;overflow:hidden}
+.herobg-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 35%}
+.herobg::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,31,38,.93) 0%,rgba(11,31,38,.82) 42%,rgba(11,31,38,.55) 70%,rgba(11,31,38,.7) 100%),linear-gradient(0deg,rgba(11,31,38,.9) 0%,rgba(11,31,38,0) 30%)}
+.herocredit{position:absolute;right:16px;bottom:12px;margin:0;z-index:1;font-size:11px;color:rgba(255,255,255,.6)}
 
 @media (max-width:980px){
 .examday-shade{background:linear-gradient(0deg,rgba(11,31,38,.96) 0%,rgba(11,31,38,.85) 55%,rgba(11,31,38,.35) 100%)}
 .examday-inner{flex-direction:column;align-items:flex-start;padding-top:260px;padding-bottom:80px}
 .examday-chip{display:none}
+.herobg::after{background:linear-gradient(180deg,rgba(11,31,38,.78) 0%,rgba(11,31,38,.9) 45%,rgba(11,31,38,.96) 100%)}
 .examday-photo{object-position:72% 70%}
 }
 
@@ -195,11 +193,9 @@ a{color:#0E7490}a:hover{color:#155E75}
 .feat.wide h3{margin-top:22px}
 .tick{display:none}
 .scorecard{bottom:0}
-.herophoto{left:0;right:0;bottom:96px}
-.scorecard{width:196px;padding:14px 16px}
-.stage{height:470px}
-.herochip{top:16px;left:12px}
-.herocredit{left:auto;right:14px;top:10px;bottom:auto}
+.stage{height:500px}
+.examcard{left:0;right:0}
+.scorecard{width:200px}
 .steprail{display:none}
 .section{padding:80px 0}
 .navcta{display:none}
