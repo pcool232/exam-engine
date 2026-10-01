@@ -152,8 +152,10 @@ a{color:#0E7490}a:hover{color:#155E75}
 
 /* exam day photo section */
 .examday{position:relative;overflow:hidden;background:#0B1F26;color:#FFFFFF;min-height:640px;display:flex;align-items:center}
-.examday-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:60% 40%;transform-origin:65% 45%;animation:kenburns 24s ease-in-out infinite alternate}
-@keyframes kenburns{from{transform:scale(1.02)}to{transform:scale(1.14) translate(-1.5%,-1%)}}
+/* Drift via object-position, not transform: an animated transform on this
+   full-bleed <img> left it unpainted in some Chromium builds (e.g. Electron). */
+.examday-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:60% 40%;animation:drift-photo 20s ease-in-out infinite alternate}
+@keyframes drift-photo{from{object-position:40% 30%}to{object-position:75% 70%}}
 .examday-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,31,38,.94) 0%,rgba(11,31,38,.82) 38%,rgba(11,31,38,.25) 72%,rgba(11,31,38,.15) 100%)}
 .examday-inner{position:relative;width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;padding-top:120px;padding-bottom:120px}
 .examday-copy{max-width:600px}
