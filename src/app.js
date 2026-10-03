@@ -7,6 +7,8 @@
  * warm between invocations).
  */
 
+const path = require('node:path');
+const fsp = require('node:fs/promises');
 const config = require('./config');
 const { App, bodyParser } = require('./core/app');
 const { TemplateEngine } = require('./core/template');
@@ -90,6 +92,52 @@ function buildApp() {
   });
 
   app.get('/healthz', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+
+  /*
+   * These three live in public/ alongside everything serveStatic() already
+   * covers, but are served from the *root* path rather than under /static/
+   * on purpose:
+   *   - /sw.js: a service worker's default scope (what pages it can
+   *     control) is the directory it's served from -- at /static/sw.js
+   *     that would be /static/ only, useless for controlling navigations
+   *     to /dashboard, /attempts/..., etc. Serving it at the root gives it
+   *     scope "/" with no extra header needed.
+   *   - /manifest.webmanifest: conventionally fetched from the site root,
+   *     and needs its own MIME type (serveStatic's table doesn't special-
+   *     case it, since nothing else in this app uses it).
+   *   - /offline.html: the service worker's own fallback page, fetched
+   *     from a specific absolute path in sw.js -- keeping it off /static/
+   *     just keeps those two in the same place conceptually.
+   * No-store (the default set above) is actually what you want for
+   * /sw.js specifically: browsers already special-case its own update
+   * check, but never risk an HTTP cache delaying that further.
+   */
+  app.get('/sw.js', async (req, res) => {
+    const body = await fsp.readFile(path.join(config.publicDir, 'sw.js'));
+    return res.send(body, 'text/javascript; charset=utf-8');
+  });
+  app.get('/manifest.webmanifest', async (req, res) => {
+    const body = await fsp.readFile(path.join(config.publicDir, 'manifest.webmanifest'));
+    return res.send(body, 'application/manifest+json; charset=utf-8');
+  });
+  app.get('/offline.html', async (req, res) => {
+    const body = await fsp.readFile(path.join(config.publicDir, 'offline.html'));
+    return res.send(body, 'text/html; charset=utf-8');
+  });
+
+  // Digital Asset Links -- proves to Android that the Play Store app
+  // (a Trusted Web Activity wrapper around this same site) is allowed to
+  // open rivaesa.<domain> without browser chrome. Must live at exactly
+  // this path (Android fetches it from the site root, not /static/).
+  // Ships as an empty, inert `[]` until the publishing guide's step that
+  // adds the real statement -- the app's package name and the SHA-256
+  // fingerprint of its signing key, neither of which exist until that key
+  // is generated -- at which point only public/assetlinks.json changes,
+  // not this route.
+  app.get('/.well-known/assetlinks.json', async (req, res) => {
+    const body = await fsp.readFile(path.join(config.publicDir, 'assetlinks.json'));
+    return res.send(body, 'application/json; charset=utf-8');
+  });
 
   authRoutes.register(app);
   studentRoutes.register(app);
