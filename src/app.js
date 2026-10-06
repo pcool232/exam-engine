@@ -129,14 +129,21 @@ function buildApp() {
   // (a Trusted Web Activity wrapper around this same site) is allowed to
   // open rivaesa.<domain> without browser chrome. Must live at exactly
   // this path (Android fetches it from the site root, not /static/).
-  // Ships as an empty, inert `[]` until the publishing guide's step that
-  // adds the real statement -- the app's package name and the SHA-256
-  // fingerprint of its signing key, neither of which exist until that key
-  // is generated -- at which point only public/assetlinks.json changes,
-  // not this route.
-  app.get('/.well-known/assetlinks.json', async (req, res) => {
-    const body = await fsp.readFile(path.join(config.publicDir, 'assetlinks.json'));
-    return res.send(body, 'application/json; charset=utf-8');
+  // Built from config (ANDROID_PACKAGE_NAME / ANDROID_SHA256_CERT_FINGERPRINTS)
+  // rather than a checked-in file, so adding Play's app-signing fingerprint
+  // after upload is a Vercel setting + redeploy, not a code change. With no
+  // fingerprints configured it serves an inert [].
+  app.get('/.well-known/assetlinks.json', (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.json(buildAssetLinks(config));
+  });
+
+  // Where the installed app (Play Store or "Install app" in Chrome) opens:
+  // straight to the student's or admin's home if signed in, otherwise the
+  // sign-in page -- not the marketing landing page that "/" shows visitors.
+  app.get('/app', (req, res) => {
+    if (!req.user) return res.redirect('/login');
+    return res.redirect(req.user.role === 'admin' ? '/admin' : '/dashboard');
   });
 
   authRoutes.register(app);
@@ -167,4 +174,21 @@ function buildApp() {
   return app;
 }
 
-module.exports = { buildApp };
+/**
+ * The Digital Asset Links statement Android checks before letting the Play
+ * Store app (a Trusted Web Activity) show this site without a URL bar.
+ * Exported for tests.
+ */
+function buildAssetLinks({ androidPackageName, androidCertFingerprints }) {
+  if (!androidPackageName || !androidCertFingerprints || !androidCertFingerprints.length) return [];
+  return [{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: androidPackageName,
+      sha256_cert_fingerprints: androidCertFingerprints,
+    },
+  }];
+}
+
+module.exports = { buildApp, buildAssetLinks };

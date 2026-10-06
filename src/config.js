@@ -89,6 +89,18 @@ const config = {
   smtpSecure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
   // How long a password reset link stays valid for.
   resetTokenTtlMinutes: Number(process.env.RESET_TOKEN_TTL_MINUTES || 60),
+
+  // The Android app on Google Play (a Trusted Web Activity -- see
+  // android/README.md). Android only opens this site full-screen, without a
+  // browser address bar, if /.well-known/assetlinks.json names the app's
+  // package and the SHA-256 fingerprint of every key that signs it. Set the
+  // fingerprints as a comma-separated list: the upload key from
+  // android/keys, plus the "App signing key certificate" fingerprint Play
+  // Console shows once the app is uploaded. Empty means "no Android app
+  // yet" and the endpoint serves an inert [].
+  androidPackageName: (process.env.ANDROID_PACKAGE_NAME || 'app.rivaesa').trim(),
+  androidCertFingerprints: (process.env.ANDROID_SHA256_CERT_FINGERPRINTS || '')
+    .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),
 };
 
 config.isProduction = config.env === 'production';
