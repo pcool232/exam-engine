@@ -98,6 +98,9 @@ const config = {
   // android/keys, plus the "App signing key certificate" fingerprint Play
   // Console shows once the app is uploaded. Empty means "no Android app
   // yet" and the endpoint serves an inert [].
+  // Shown on /privacy and /account-deletion as where to send data requests.
+  contactEmail: (process.env.CONTACT_EMAIL || 'kgosicanelo@gmail.com').trim(),
+
   androidPackageName: (process.env.ANDROID_PACKAGE_NAME || 'app.rivaesa').trim(),
   androidCertFingerprints: (process.env.ANDROID_SHA256_CERT_FINGERPRINTS || '')
     .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean),

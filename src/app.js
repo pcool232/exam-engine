@@ -36,6 +36,7 @@ function buildApp() {
     assetVersion: config.assetVersion,
     googleClientId: config.googleClientId,
     resetTokenTtlMinutes: config.resetTokenTtlMinutes,
+    contactEmail: config.contactEmail,
     nextUrl: '', // overridden by /login when it has a "next" target to preserve
     inboxUnreadCount: 0, // overridden by middleware/auth.js#loadUser for signed-in students
     // Set by a route to a number of seconds to have the layout auto-reload
@@ -141,6 +142,11 @@ function buildApp() {
   // Where the installed app (Play Store or "Install app" in Chrome) opens:
   // straight to the student's or admin's home if signed in, otherwise the
   // sign-in page -- not the marketing landing page that "/" shows visitors.
+  // Required by Google Play for any app with accounts: a public privacy
+  // policy, and a public page explaining how to get an account deleted.
+  app.get('/privacy', (req, res) => res.render('legal/privacy', { title: 'Privacy policy' }));
+  app.get('/account-deletion', (req, res) => res.render('legal/account-deletion', { title: 'Delete your account' }));
+
   app.get('/app', (req, res) => {
     if (!req.user) return res.redirect('/login');
     return res.redirect(req.user.role === 'admin' ? '/admin' : '/dashboard');

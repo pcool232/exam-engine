@@ -866,3 +866,9 @@ details.help pre {
   body { background: #fff; }
   .card, .question { box-shadow: none; break-inside: avoid; }
 }
+
+/* Privacy policy / account deletion (views/legal/) -- long-form text. */
+.legal { max-width: 720px; margin: 0 auto; line-height: 1.6; }
+.legal h2 { font-size: 1.1rem; margin: 1.5rem 0 .5rem; }
+.legal ul, .legal ol { padding-left: 1.25rem; }
+.legal li { margin-bottom: .4rem; }
