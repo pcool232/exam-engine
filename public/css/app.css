@@ -713,6 +713,22 @@ h3:hover .title-icon { animation: icon-wiggle .5s ease-in-out; }
 .option:has(input:checked) .option-label { color: var(--accent-dark); }
 .option-text { flex: 1; }
 
+/* picture-based options -- the image itself is the thing being chosen,
+   so it's shown as a card (radio/label on top, image filling the rest)
+   instead of the plain text row above. */
+.options.image-options { grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+@media (max-width: 560px) { .options.image-options { grid-template-columns: 1fr; } }
+.option.has-image { flex-direction: column; align-items: stretch; padding: .5rem; gap: .5rem; }
+.option-head { display: flex; align-items: center; gap: .5rem; flex: 1; flex-wrap: wrap; }
+.option.has-image .option-head { padding: 0 .2rem; }
+.option.has-image .option-text:empty { display: none; }
+.option-image {
+  display: block; width: 100%; overflow: hidden;
+  border: 1px solid var(--border); border-radius: calc(var(--radius-sm) - 2px);
+  background: #fff;
+}
+.option-image img { display: block; width: 100%; height: auto; }
+
 /* ----------------------------------------------------------- results -- */
 
 .score-hero {

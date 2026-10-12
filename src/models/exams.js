@@ -175,12 +175,13 @@ async function addQuestion(examId, { text, type = 'single', explanation = null, 
   let index = 0;
   for (const option of options) {
     await db.run(
-      `INSERT INTO options (question_id, label, option_text, is_correct, position)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO options (question_id, label, option_text, image, is_correct, position)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         questionId,
         option.label || LABELS[index] || String(index + 1),
-        String(option.text).trim(),
+        String(option.text || '').trim(),
+        option.image ? String(option.image).trim() : null,
         option.isCorrect ? 1 : 0,
         index + 1,
       ]
@@ -215,12 +216,13 @@ async function updateQuestion(questionId, { text, type, explanation, marks, opti
     let index = 0;
     for (const option of options) {
       await tx.run(
-        `INSERT INTO options (question_id, label, option_text, is_correct, position)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO options (question_id, label, option_text, image, is_correct, position)
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
           Number(questionId),
           option.label || LABELS[index] || String(index + 1),
-          String(option.text).trim(),
+          String(option.text || '').trim(),
+          option.image ? String(option.image).trim() : null,
           option.isCorrect ? 1 : 0,
           index + 1,
         ]
@@ -291,11 +293,12 @@ async function addQuestionsBulk(examId, questions) {
       batch.forEach((question, qi) => {
         const questionId = Number(questionRows[qi].id);
         (question.options || []).forEach((option, index) => {
-          oPlaceholders.push('(?, ?, ?, ?, ?)');
+          oPlaceholders.push('(?, ?, ?, ?, ?, ?)');
           oParams.push(
             questionId,
             option.label || LABELS[index] || String(index + 1),
-            String(option.text).trim(),
+            String(option.text || '').trim(),
+            option.image ? String(option.image).trim() : null,
             option.isCorrect ? 1 : 0,
             index + 1,
           );
@@ -303,7 +306,7 @@ async function addQuestionsBulk(examId, questions) {
       });
       if (oPlaceholders.length) {
         await tx.run(
-          `INSERT INTO options (question_id, label, option_text, is_correct, position)
+          `INSERT INTO options (question_id, label, option_text, image, is_correct, position)
            VALUES ${oPlaceholders.join(', ')}`,
           oParams
         );

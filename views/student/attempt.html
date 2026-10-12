@@ -38,16 +38,29 @@
             </figure>
           {% endif %}
 
-          <div class="options">
+          <div class="options{% if question.hasImageOptions %} image-options{% endif %}">
             {% for option, optionIndex in question.options %}
-              <label class="option">
-                <input
-                  type="{% if question.question_type === 'multiple' %}checkbox{% else %}radio{% endif %}"
-                  name="q_{{ question.id }}"
-                  value="{{ option.id }}"
-                  {% if question.savedSelection.includes(option.id) %}checked{% endif %}>
-                <span class="option-label">{{ 'ABCDEFGHIJ'[optionIndex] }}</span>
-                <span class="option-text">{{ option.option_text }}</span>
+              <label class="option{% if option.image %} has-image{% endif %}">
+                {% if option.image %}
+                  <span class="option-head">
+                    <input
+                      type="{% if question.question_type === 'multiple' %}checkbox{% else %}radio{% endif %}"
+                      name="q_{{ question.id }}"
+                      value="{{ option.id }}"
+                      {% if question.savedSelection.includes(option.id) %}checked{% endif %}>
+                    <span class="option-label">{{ 'ABCDEFGHIJ'[optionIndex] }}</span>
+                    <span class="option-text">{{ option.option_text }}</span>
+                  </span>
+                  <span class="option-image"><img src="{{ option.image }}" alt="Option {{ 'ABCDEFGHIJ'[optionIndex] }}" loading="lazy"></span>
+                {% else %}
+                  <input
+                    type="{% if question.question_type === 'multiple' %}checkbox{% else %}radio{% endif %}"
+                    name="q_{{ question.id }}"
+                    value="{{ option.id }}"
+                    {% if question.savedSelection.includes(option.id) %}checked{% endif %}>
+                  <span class="option-label">{{ 'ABCDEFGHIJ'[optionIndex] }}</span>
+                  <span class="option-text">{{ option.option_text }}</span>
+                {% endif %}
               </label>
             {% endfor %}
           </div>

@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -115,6 +115,7 @@ const SCHEMA_STATEMENTS = [
     question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
     label       TEXT    NOT NULL,
     option_text TEXT    NOT NULL,
+    image       TEXT,
     is_correct  INTEGER NOT NULL DEFAULT 0,
     position    INTEGER NOT NULL DEFAULT 0
   )`,
@@ -223,6 +224,10 @@ const COLUMN_MIGRATIONS = [
   // soon as the token is used, or a password is changed any other way.
   { table: 'users', column: 'reset_token_hash', definition: 'TEXT' },
   { table: 'users', column: 'reset_token_expires', definition: 'BIGINT' },
+  // Picture-based answer options (e.g. "which of these images shows a
+  // relief sculpture?") -- an option can carry its own image instead of,
+  // or alongside, its text, so the picture itself is what the student taps.
+  { table: 'options', column: 'image', definition: 'TEXT' },
 ];
 
 /** Converts this app's `?` placeholders to Postgres's `$1, $2, ...`. */

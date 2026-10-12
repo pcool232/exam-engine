@@ -166,8 +166,11 @@ function parseJsonQuestions(text) {
       const label = LABELS[optionIndex] || String(optionIndex + 1);
       if (option && typeof option === 'object') {
         const optionText = String(firstDefined(option, ['text', 'option', 'value', 'label_text']) || '').trim();
-        if (!optionText) return;
-        options.push({ label: String(option.label || label).toUpperCase(), text: optionText });
+        const optionImage = String(firstDefined(option, ['image', 'figure', 'image_url', 'imageUrl']) || '').trim();
+        // A picture-based option (e.g. "which image shows X?") can carry an
+        // image with no text at all -- the picture itself is the answer.
+        if (!optionText && !optionImage) return;
+        options.push({ label: String(option.label || label).toUpperCase(), text: optionText, image: optionImage || null });
         if (option.correct === true || option.is_correct === true || option.isCorrect === true) {
           inlineCorrect.push(String(option.label || label).toUpperCase());
         }
@@ -219,6 +222,7 @@ function parseJsonQuestions(text) {
       options: options.map((option) => ({
         label: option.label,
         text: option.text,
+        image: option.image || null,
         isCorrect: correctLabels.includes(option.label),
       })),
     });

@@ -252,6 +252,7 @@ async function getAttemptResult(attemptId) {
         chosen: selected.includes(option.id),
         correct: Boolean(option.is_correct),
       })),
+      hasImageOptions: question.options.some((option) => option.image),
     };
   });
 

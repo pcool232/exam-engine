@@ -147,6 +147,7 @@ function register(app) {
         ...question,
         number: index + 1,
         savedSelection: saved.get(question.id) || [],
+        hasImageOptions: (question.options || []).some((option) => option.image),
       })),
       secondsRemaining: attempt.expires_at
         ? Math.max(0, Math.round((attempt.expires_at - Date.now()) / 1000))
