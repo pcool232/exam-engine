@@ -12,6 +12,8 @@ a{color:#0E7490}a:hover{color:#155E75}
 .navlinks{display:flex;gap:28px}
 .navlinks a{color:#B9D3D9;text-decoration:none;font-size:15px}
 .navlinks a:hover{color:#FFFFFF}
+.navcta{display:flex;gap:12px;align-items:center}
+.navcta .cta{min-height:44px;padding:0 20px;font-size:15px}
 
 /* hero */
 .hero{position:relative;background:#0B1F26;color:#EAF4F6;overflow:hidden;padding-bottom:120px}
@@ -33,6 +35,7 @@ a{color:#0E7490}a:hover{color:#155E75}
 .cta:hover{transform:translateY(-2px)}
 .cta.primary{background:#5FD3E6;color:#0B1F26}
 .cta.primary:hover{background:#8FE3F0;color:#0B1F26}
+button.cta{border:none;cursor:pointer;font-family:inherit}
 .cta.ghost{border:1px solid #2C4E57;color:#EAF4F6}
 .cta.ghost:hover{background:#12313A;color:#FFFFFF}
 .pill{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:999px;border:1px solid #24464F;font-size:13px;font-weight:600;letter-spacing:.04em;color:#D7ECF0}
@@ -132,6 +135,13 @@ a{color:#0E7490}a:hover{color:#155E75}
 .chk{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid #1E3E47}
 .chk:last-child{border-bottom:0}
 
+/* get the app */
+.getapp{background:#0B1F26;color:#EAF4F6;position:relative;overflow:hidden}
+.appcard{background:#FFFFFF;color:#0B1F26;border-radius:28px;padding:40px 32px;text-align:center;box-shadow:0 40px 80px -30px rgba(0,0,0,.6);max-width:300px;margin:0 auto}
+.homerow{display:flex;justify-content:center;gap:10px;margin-top:26px}
+.homedot{width:34px;height:34px;border-radius:9px;background:#EEF4F6;flex-shrink:0}
+.homedot.active{background:transparent;transform:scale(1.18)}
+
 /* admin */
 .admingrid{display:grid;grid-template-columns:1.1fr .9fr;gap:64px;align-items:center}
 .upload{background:#FFFFFF;border:1.5px dashed #9CC6CF;border-radius:24px;padding:32px;position:relative;overflow:hidden}
@@ -198,7 +208,11 @@ a{color:#0E7490}a:hover{color:#155E75}
 .scorecard{width:200px}
 .steprail{display:none}
 .section{padding:80px 0}
-.navcta{display:none}
+.navcta .cta{min-height:38px;padding:0 14px;font-size:13px}
+.navcta{gap:8px}
+}
+@media (max-width:420px){
+.navstart{display:none}
 }
 @media (prefers-reduced-motion:reduce){
 .rv *,.rv *::before,.rv *::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition:none !important}

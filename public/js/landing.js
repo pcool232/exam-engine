@@ -1,9 +1,10 @@
 'use strict';
 /**
- * Landing page (views/landing.html) — the three small live bits:
+ * Landing page (views/landing.html) — the four small live bits:
  *   1. the hero exam card's countdown timer,
  *   2. the "try a question" demo (instant marking, no server round trip),
- *   3. the "simulate losing signal" toggle for the offline section.
+ *   3. the "simulate losing signal" toggle for the offline section,
+ *   4. the "Download app now" button for the PWA (see #get-app).
  * Plain DOM, no dependencies. Everything degrades to the static markup if
  * this script fails to load (e.g. on a very poor connection).
  */
@@ -66,5 +67,48 @@
       banner.hidden = !off;
       status.textContent = off ? '1 answer waiting to save' : 'All answers saved';
     });
+  }
+
+  /* 4. Install the app (PWA) --------------------------------------------- */
+  var installSection = document.querySelector('[data-pwa-install]');
+  if (installSection) {
+    var installBtn = installSection.querySelector('[data-install-btn]');
+    var installHelp = installSection.querySelector('[data-install-help]');
+    var iosHelp = installSection.querySelector('[data-install-ios]');
+    var genericHelp = installSection.querySelector('[data-install-generic]');
+    var deferredPrompt = null;
+
+    // Chrome/Edge/Android fire this when the page qualifies as installable.
+    // Capturing it lets us trigger the native install dialog from our own
+    // button instead of waiting for the browser's own mini-infobar.
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    var isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    var isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
+
+    if (isStandalone) {
+      // Already installed and running as an app -- nothing to install.
+      installBtn.textContent = 'Open app';
+      installBtn.addEventListener('click', function () {
+        window.location.href = '/app?source=landing-install';
+      });
+    } else if (installBtn) {
+      installBtn.addEventListener('click', function () {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.finally(function () { deferredPrompt = null; });
+          return;
+        }
+        // No native prompt available (iOS Safari, or Chrome hasn't offered
+        // it yet) -- show the manual steps instead of doing nothing.
+        if (iosHelp) iosHelp.hidden = !isIOS;
+        if (genericHelp) genericHelp.hidden = isIOS;
+        installHelp.hidden = false;
+        installHelp.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    }
   }
 })();
