@@ -91,3 +91,31 @@ Each figure is a crop of the scanned page, converted to greyscale JPEG at 760px
 wide and embedded as a `data:` URI (about 290 KB of images in a 442 KB file).
 Questions 35 and 36 share the gear-train diagram. Nothing is fetched from the
 internet when a student sits the paper.
+
+---
+
+## bec-jc-design-technology-2025-p1.json
+
+**Botswana Examinations Council — Junior Certificate Examination
+Design and Technology, Paper 1 (17/1), October/November 2025**
+40 questions · 40 marks · 1 hour · category JC
+
+Transcribed from photographs of the paper. Thirteen questions carry a diagram,
+cropped from the photos and embedded in the file. In four of them (14, 18, 20
+and 40) the answers themselves are pictures, so each option carries its own
+image. Option shuffling is off to keep the paper in its original order.
+
+### Answers you should check before publishing
+
+The paper has no marking key, so every answer was worked out from the subject
+matter. Most are settled by definition. Check these against the BEC key:
+
+| Q | Topic | Answer used here | Why it's uncertain |
+| --- | --- | --- | --- |
+| 14 | Dividing GH in the ratio 2:4 | B | All four diagrams show five divisions, not six; B is the only one using the correct stepped-off construction line |
+| 40 | Orthographic projection of the block | B | Depends on fine detail in a photographed drawing |
+| 7 | Tool to check flatness | A — Try square | A straight edge would be the textbook tool; it isn't offered |
+| 23 | Joining rubber to metal | A — Contact adhesive | Epoxy resin is also defensible |
+| 9 | Before varnishing, the surface should be | D — abraded | "cleaned" is also defensible |
+
+Questions 14 and 40 are the least certain.
