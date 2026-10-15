@@ -148,7 +148,29 @@ function register(app) {
       });
     }
 
-    const exam = await exams.createExam(values, req.user.id);
+    let exam;
+    try {
+      exam = await exams.createExam(values, req.user.id);
+    } catch (err) {
+      if (err.code !== 'DUPLICATE_EXAM') throw err;
+      return res.status(409).render('admin/exam-form', {
+        subjects: await exams.subjectsInUse(),
+        categories: exams.CATEGORIES,
+        title: 'New exam',
+        exam: {
+          title: values.title, exam_code: values.examCode, subject: values.subject,
+          category: values.category, year: values.year, description: values.description,
+          duration_minutes: values.durationMinutes, pass_mark: values.passMark,
+          questions_per_attempt: values.questionsPerAttempt,
+          shuffle_questions: values.shuffleQuestions ? 1 : 0,
+          shuffle_options: values.shuffleOptions ? 1 : 0,
+          show_answers: values.showAnswers ? 1 : 0,
+          is_published: values.isPublished ? 1 : 0,
+        },
+        isNew: true,
+        errors: [err.message],
+      });
+    }
     setFlash(req, 'success', 'Exam created. Now add some questions.');
     return res.redirect(`/admin/exams/${exam.id}`);
   });
@@ -198,7 +220,19 @@ function register(app) {
         errors,
       });
     }
-    await exams.updateExam(exam.id, values);
+    try {
+      await exams.updateExam(exam.id, values);
+    } catch (err) {
+      if (err.code !== 'DUPLICATE_EXAM') throw err;
+      return res.status(409).render('admin/exam-form', {
+        subjects: await exams.subjectsInUse(),
+        categories: exams.CATEGORIES,
+        title: 'Edit exam',
+        exam: { ...exam, ...values, exam_code: values.examCode, is_published: exam.is_published },
+        isNew: false,
+        errors: [err.message],
+      });
+    }
     setFlash(req, 'success', 'Exam settings saved.');
     return res.redirect(`/admin/exams/${exam.id}`);
   });
@@ -464,11 +498,21 @@ function register(app) {
     const hasPictureOptions = pending.questions.some((question) =>
       question.options.some((option) => /^shown at [a-j]$/i.test(String(option.text).trim())));
 
+    // Warn before the admin fills anything in if this paper is already loaded.
+    const duplicate = await exams.findDuplicateExam({
+      title: suggested.title,
+      examCode: suggested.examCode,
+      subject: suggested.subject,
+      year: suggested.year,
+      category: suggested.category,
+    });
+
     return res.render('admin/import-preview', {
       subjects: await exams.subjectsInUse(),
       categories: exams.CATEGORIES,
       title: 'Review the exam',
       exam: null,
+      duplicate,
       pending,
       questions: pending.questions,
       issues: pending.issues,
@@ -514,7 +558,14 @@ function register(app) {
       return res.redirect(`/admin/import/preview?t=${pending.token}`);
     }
 
-    const exam = await exams.createExam(examFormValues(req.body), req.user.id);
+    let exam;
+    try {
+      exam = await exams.createExam(examFormValues(req.body), req.user.id);
+    } catch (err) {
+      if (err.code !== 'DUPLICATE_EXAM') throw err;
+      setFlash(req, 'error', err.message);
+      return res.redirect(`/admin/import/preview?t=${pending.token}`);
+    }
     const saved = await exams.addQuestionsBulk(exam.id, selected);
 
     delete req.session.pendingImport;
@@ -598,6 +649,7 @@ function register(app) {
       subjects: await exams.subjectsInUse(),
       title: `Review import - ${exam.title}`,
       exam,
+      duplicate: null,
       pending,
       questions: pending.questions,
       issues: pending.issues,

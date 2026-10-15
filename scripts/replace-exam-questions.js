@@ -119,7 +119,10 @@ async function findMatch() {
   const byTitle = all.find((e) => String(e.title || '').trim().toLowerCase() === title);
   if (byTitle) return byTitle;
 
-  return null;
+  // Same rule the app uses to refuse duplicates (title ignoring punctuation,
+  // or subject + code + year at the same level), so a near-identical title
+  // replaces the existing paper instead of failing to create a copy.
+  return exams.findDuplicateExam({ ...settings, category });
 }
 
 (async () => {

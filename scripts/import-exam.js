@@ -94,7 +94,18 @@ const examData = {
 };
 
 (async () => {
-  const exam = await exams.createExam(examData, null);
+  let exam;
+  try {
+    exam = await exams.createExam(examData, null);
+  } catch (err) {
+    if (err.code !== 'DUPLICATE_EXAM') throw err;
+    console.error(err.message);
+    console.error('Nothing was imported. To replace that exam\'s questions from this file, run:');
+    console.error(`  node scripts/replace-exam-questions.js ${filePath} --exam-id ${err.existing.id}`);
+    await closeDb();
+    process.exitCode = 1;
+    return;
+  }
   const saved = await exams.addQuestionsBulk(exam.id, parsed.questions);
 
   console.log(`Created "${exam.title}" (exam #${exam.id}) with ${saved} question${saved === 1 ? '' : 's'}.`);

@@ -19,57 +19,121 @@ function boolInt(value) {
 
 /* ----------------------------------------------------------- exams ----- */
 
-async function createExam(data, createdBy) {
-  const result = await run(
-    `INSERT INTO exams (title, exam_code, subject, category, description, year, duration_minutes, pass_mark,
-                        questions_per_attempt, shuffle_questions, shuffle_options, show_answers,
-                        is_published, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     RETURNING id`,
-    [
-      String(data.title || '').trim(),
-      data.examCode ? String(data.examCode).trim() : null,
-      cleanSubject(data.subject) || null,
-      cleanCategory(data.category),
-      data.description ? String(data.description).trim() : null,
-      data.year ? String(data.year).trim() : null,
-      Math.max(0, toInt(data.durationMinutes, 60)),
-      Math.min(100, Math.max(0, toInt(data.passMark, 50))),
-      Math.max(0, toInt(data.questionsPerAttempt, 0)),
-      boolInt(data.shuffleQuestions),
-      boolInt(data.shuffleOptions),
-      boolInt(data.showAnswers),
-      boolInt(data.isPublished),
-      createdBy || null,
-    ]
+/* ------------------------------------------------- duplicate guard ----- */
+
+// One fixed advisory-lock key for "creating or renaming an exam". Taking it
+// inside the transaction serialises those writes, so two imports of the same
+// paper landing at the same moment cannot both pass the duplicate check.
+const EXAM_IDENTITY_LOCK = 7316001;
+
+/** Comparison key: lower-case, punctuation and repeated spaces collapsed. */
+function examKey(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * Two exams are the same paper when they are at the same level (category)
+ * and either
+ *   - their titles match, ignoring case, spacing and punctuation, or
+ *   - subject, exam code and year all match (and all three are filled in),
+ *     which catches the same paper loaded under a slightly different title.
+ */
+function isSamePaper(a, b) {
+  if ((cleanCategory(a.category) || null) !== (cleanCategory(b.category) || null)) return false;
+  const titleA = examKey(a.title);
+  if (titleA && titleA === examKey(b.title)) return true;
+  const subjectA = examKey(cleanSubject(a.subject));
+  const codeA = examKey(a.examCode !== undefined ? a.examCode : a.exam_code);
+  const yearA = examKey(a.year);
+  return Boolean(subjectA && codeA && yearA
+    && subjectA === examKey(cleanSubject(b.subject))
+    && codeA === examKey(b.examCode !== undefined ? b.examCode : b.exam_code)
+    && yearA === examKey(b.year));
+}
+
+class DuplicateExamError extends Error {
+  constructor(existing) {
+    const level = existing.category ? ` (${existing.category})` : '';
+    super(`This exam already exists: "${existing.title}"${level}, exam #${existing.id}. ` +
+      'Open that exam and edit or re-import its questions instead of creating it again.');
+    this.name = 'DuplicateExamError';
+    this.code = 'DUPLICATE_EXAM';
+    this.existing = existing;
+  }
+}
+
+/** The existing exam that `data` would duplicate, or null. */
+async function findDuplicateExam(data, { excludeId = null } = {}, db = { get, all, run }) {
+  const rows = await db.all(
+    'SELECT id, title, exam_code, subject, category, year, is_published FROM exams WHERE id <> ? ORDER BY id',
+    [Number(excludeId) || 0]
   );
-  return findExam(result.lastInsertRowid);
+  return rows.find((row) => isSamePaper(data, row)) || null;
+}
+
+async function createExam(data, createdBy) {
+  const id = await transaction(async (tx) => {
+    await tx.get(`SELECT pg_advisory_xact_lock(${EXAM_IDENTITY_LOCK})`);
+    const existing = await findDuplicateExam(data, {}, tx);
+    if (existing) throw new DuplicateExamError(existing);
+    const result = await tx.run(
+      `INSERT INTO exams (title, exam_code, subject, category, description, year, duration_minutes, pass_mark,
+                          questions_per_attempt, shuffle_questions, shuffle_options, show_answers,
+                          is_published, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`,
+      [
+        String(data.title || '').trim(),
+        data.examCode ? String(data.examCode).trim() : null,
+        cleanSubject(data.subject) || null,
+        cleanCategory(data.category),
+        data.description ? String(data.description).trim() : null,
+        data.year ? String(data.year).trim() : null,
+        Math.max(0, toInt(data.durationMinutes, 60)),
+        Math.min(100, Math.max(0, toInt(data.passMark, 50))),
+        Math.max(0, toInt(data.questionsPerAttempt, 0)),
+        boolInt(data.shuffleQuestions),
+        boolInt(data.shuffleOptions),
+        boolInt(data.showAnswers),
+        boolInt(data.isPublished),
+        createdBy || null,
+      ]
+    );
+    return result.lastInsertRowid;
+  });
+  return findExam(id);
 }
 
 async function updateExam(id, data) {
-  await run(
-    `UPDATE exams SET title = ?, exam_code = ?, subject = ?, category = ?, description = ?, year = ?,
-                      duration_minutes = ?, pass_mark = ?, questions_per_attempt = ?,
-                      shuffle_questions = ?, shuffle_options = ?, show_answers = ?,
-                      is_published = ?, updated_at = ${NOW_SQL}
-     WHERE id = ?`,
-    [
-      String(data.title || '').trim(),
-      data.examCode ? String(data.examCode).trim() : null,
-      cleanSubject(data.subject) || null,
-      cleanCategory(data.category),
-      data.description ? String(data.description).trim() : null,
-      data.year ? String(data.year).trim() : null,
-      Math.max(0, toInt(data.durationMinutes, 60)),
-      Math.min(100, Math.max(0, toInt(data.passMark, 50))),
-      Math.max(0, toInt(data.questionsPerAttempt, 0)),
-      boolInt(data.shuffleQuestions),
-      boolInt(data.shuffleOptions),
-      boolInt(data.showAnswers),
-      boolInt(data.isPublished),
-      Number(id),
-    ]
-  );
+  await transaction(async (tx) => {
+    await tx.get(`SELECT pg_advisory_xact_lock(${EXAM_IDENTITY_LOCK})`);
+    // Renaming an exam must not turn it into a copy of another one.
+    const existing = await findDuplicateExam(data, { excludeId: id }, tx);
+    if (existing) throw new DuplicateExamError(existing);
+    await tx.run(
+      `UPDATE exams SET title = ?, exam_code = ?, subject = ?, category = ?, description = ?, year = ?,
+                        duration_minutes = ?, pass_mark = ?, questions_per_attempt = ?,
+                        shuffle_questions = ?, shuffle_options = ?, show_answers = ?,
+                        is_published = ?, updated_at = ${NOW_SQL}
+       WHERE id = ?`,
+      [
+        String(data.title || '').trim(),
+        data.examCode ? String(data.examCode).trim() : null,
+        cleanSubject(data.subject) || null,
+        cleanCategory(data.category),
+        data.description ? String(data.description).trim() : null,
+        data.year ? String(data.year).trim() : null,
+        Math.max(0, toInt(data.durationMinutes, 60)),
+        Math.min(100, Math.max(0, toInt(data.passMark, 50))),
+        Math.max(0, toInt(data.questionsPerAttempt, 0)),
+        boolInt(data.shuffleQuestions),
+        boolInt(data.shuffleOptions),
+        boolInt(data.showAnswers),
+        boolInt(data.isPublished),
+        Number(id),
+      ]
+    );
+  });
   return findExam(id);
 }
 
@@ -500,6 +564,7 @@ async function countQuestions(examId) {
 module.exports = {
   LABELS,
   createExam, updateExam, findExam, deleteExam, setPublished,
+  findDuplicateExam, isSamePaper, examKey, DuplicateExamError,
   listExams, listExamsForStudent,
   addQuestion, addQuestionsBulk, updateQuestion, findQuestion, listQuestions,
   deleteQuestion, deleteAllQuestions, moveQuestion, countQuestions, nextPosition,

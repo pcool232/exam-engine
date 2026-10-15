@@ -61,3 +61,25 @@ test('describe() mentions random draws only when fewer questions are served than
   }, 40);
   assert.match(partial, /Each attempt draws 10 questions at random from a bank of 40\./);
 });
+
+test('isSamePaper matches titles ignoring case, spacing and punctuation, at the same level only', () => {
+  const existing = { id: 11, title: 'Design and Technology Paper 1 (17/1) - October/November 2025', category: 'JC' };
+  assert.equal(exams.isSamePaper({ title: 'design and technology paper 1 (17/1) – October / November 2025', category: 'jc' }, existing), true);
+  assert.equal(exams.isSamePaper({ title: existing.title, category: 'BGCSE' }, existing), false);
+  assert.equal(exams.isSamePaper({ title: 'Design and Technology Paper 1 (17/1) - October/November 2018', category: 'JC' }, existing), false);
+});
+
+test('isSamePaper matches the same subject, code and year under a different title', () => {
+  const existing = { title: 'D&T 2025', subject: 'Design and Technology', exam_code: '17/1', year: 'October/November 2025', category: 'JC' };
+  const incoming = { title: 'Design and Technology P1', subject: 'design and technology', examCode: '17/1', year: 'October/November 2025', category: 'JC' };
+  assert.equal(exams.isSamePaper(incoming, existing), true);
+  assert.equal(exams.isSamePaper({ ...incoming, year: 'October/November 2024' }, existing), false);
+  // All three must be filled in -- a blank code is not evidence of a match.
+  assert.equal(exams.isSamePaper({ ...incoming, examCode: '' }, { ...existing, exam_code: '' }), false);
+});
+
+test('DuplicateExamError names the exam it collides with', () => {
+  const err = new exams.DuplicateExamError({ id: 11, title: 'Design and Technology Paper 1', category: 'JC' });
+  assert.equal(err.code, 'DUPLICATE_EXAM');
+  assert.match(err.message, /Design and Technology Paper 1.*\(JC\).*#11/);
+});

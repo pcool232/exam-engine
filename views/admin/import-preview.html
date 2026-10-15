@@ -23,6 +23,15 @@
   </div>
 </div>
 
+{% if duplicate %}
+  <div class="notice notice-error">
+    <strong>This paper is already on {{ appName }}.</strong>
+    It matches <a href="/admin/exams/{{ duplicate.id }}">{{ duplicate.title }}</a>{% if duplicate.category %} ({{ duplicate.category }}){% endif %},
+    so creating it again will be refused. To change that exam, open it and use
+    <strong>Import questions</strong> or <strong>Edit</strong> there instead.
+  </div>
+{% endif %}
+
 {% if issues.length > 0 %}
   <div class="notice notice-warning">
     <strong>{{ issues.length }} block{% if issues.length !== 1 %}s{% endif %} could not be read and will be skipped.</strong>
