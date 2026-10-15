@@ -119,3 +119,40 @@ matter. Most are settled by definition. Check these against the BEC key:
 | 9 | Before varnishing, the surface should be | D — abraded | "cleaned" is also defensible |
 
 Questions 14 and 40 are the least certain.
+
+---
+
+## bec-jc-design-technology-2024-p1.json
+
+**Botswana Examinations Council — Junior Certificate Examination
+Design and Technology, Paper 1 (17/1), October/November 2024**
+40 questions · 40 marks · 1 hour · category JC
+
+Transcribed from photographs of the paper. Twenty-three questions carry a
+diagram, cropped from the photos and embedded in the file. Several share one
+figure: the wooden step (7–10), the boring bit (20–21), the suggestion box
+(23–25), the hand saws (30–31), the working drawing (34–35) and the chiselling
+photo (37–38). In questions 2, 5, 27 and 36 the answers are pictures, so the
+whole lettered figure sits in the question and the options read "Shown at A"
+and so on. Option shuffling is off for that reason.
+
+### Answers you should check before publishing
+
+The paper has no marking key, so every answer was worked out from the subject
+matter. Most are settled by definition. Check these against the BEC key:
+
+| Q | Topic | Answer used here | Why it's uncertain |
+| --- | --- | --- | --- |
+| 10 | Joint for the frame at K | D — Mortising | Housing or dowelling a rail into a side is also defensible |
+| 5 | Dividing EY into 5 equal parts | A | Depends on fine arrow detail in a photographed drawing; D also shows a plausible construction |
+| 22 | Factor in the cost of a product | A — Profit | Advertising is an overhead and could be argued |
+| 36 | Which block is transparent | D | Depends on faint back edges in a photographed sketch; C is the other candidate |
+| 35 | Improperly dimensioned | B — 100 | Based on the direction the figures read |
+| 11 | Analysing the design theme | C — Situation | Wording is loose |
+| 12 | Pedal bin mechanism | A — Reverse | "Push and pull" could be argued |
+| 17 | Basic component of electricity | D — Current | Wording is loose; the other three are circuit components |
+| 23 | Hinge for the aluminium lid | B — Piano | A butt hinge is also used on boxes |
+| 39 | How a ceiling fan cools a room | B — linear direction | None of the options is a textbook phrasing |
+| 13 | Software for enhancing drawings | A — Photoshop | Illustrator is also defensible |
+
+Questions 10, 5, 22 and 36 are the least certain.
