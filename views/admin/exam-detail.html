@@ -92,6 +92,9 @@
                 {% for option in question.options %}
                   <li class="{% if option.is_correct %}correct{% endif %}">
                     {{ option.label }}. {{ option.option_text }}{% if option.is_correct %} ✓{% endif %}
+                    {% if option.image %}
+                      <img class="option-thumb" src="{{ option.image }}" alt="Option {{ option.label }}" loading="lazy">
+                    {% endif %}
                   </li>
                 {% endfor %}
               </ul>
