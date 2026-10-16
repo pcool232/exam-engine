@@ -189,3 +189,34 @@ matter. Check these against the BEC key:
 | 37 | Mechanism for lifting maize bags | A — Pulley and belt | Rack and pinion also lifts |
 
 Questions 5–8, 18 and 32 are the least certain.
+
+---
+
+## bec-jc-design-technology-2021-p1.json
+
+**Botswana Examinations Council — Junior Certificate Examination
+Design and Technology, Paper 1 (17/1), October/November 2021**
+40 questions · 40 marks · 1 hour · category JC
+
+Transcribed from photographs of the paper. Twenty-seven questions carry a
+picture, cropped and cleaned to a white background (photographs are only
+contrast-lifted, so detail is kept). In questions 1, 5, 16, 22, 23, 28, 29
+and 34 the answers are pictures, so the whole lettered figure sits in the
+question and the options read "Shown at A" and so on. Option shuffling is off.
+
+### Answers you should check before publishing
+
+| Q | Topic | Answer used here | Why it's uncertain |
+| --- | --- | --- | --- |
+| 27 | Forces on the climbing rope | A — Torsion and tension | Only tension is certain; D also contains it |
+| 26 | Finishes and solvents | A — Thinners cleans oil brushes | C (mineral spirit thins oil paint) is also true |
+| 33 | Joining method shown | A — Brazing | Filler rod and torch could also be read as welding |
+| 21 | Drawing technique of the chair | B — Isometric | Crating lines are visible too |
+| 5 | Safe socket | A | Depends on photographed detail |
+| 10 | File grip | C — Heavy filing | Depends on the drawing |
+| 17 | Enhancing technique | D — Texturing | Shading could be argued |
+| 23 | Unstable truss | B | Depends on reading the drawing |
+| 29 | Masonry bit | C | Depends on photographed detail |
+| 24 | Commercial name of the timber | C — Plank | Size bands differ between textbooks |
+
+Questions 27, 26, 33 and 21 are the least certain.
