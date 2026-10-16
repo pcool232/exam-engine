@@ -28,6 +28,13 @@
       </div>
 
       <div class="field">
+        <label for="phone">Mobile number <span class="muted">(optional)</span></label>
+        <input type="tel" id="phone" name="phone" value="{{ values.phone || '' }}"
+               autocomplete="tel" inputmode="tel" placeholder="71 234 567">
+        <p class="small muted">We'll text you when a new exam for your level is published.</p>
+      </div>
+
+      <div class="field">
         <label for="studentNumber">Student number <span class="muted">(optional)</span></label>
         <input type="text" id="studentNumber" name="studentNumber" value="{{ values.studentNumber || '' }}">
       </div>

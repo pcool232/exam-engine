@@ -49,7 +49,7 @@ types.setTypeParser(1700, (value) => (value === null ? null : parseFloat(value))
 // previous cold start) has recorded this version, later cold starts skip
 // straight past all 17 CREATE-TABLE/migration round trips with a single
 // SELECT instead of re-running (and re-checking) every one of them.
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 const SCHEMA_STATEMENTS = [
   // Tracks which schema/migration version has already been applied, so a
@@ -228,6 +228,10 @@ const COLUMN_MIGRATIONS = [
   // relief sculpture?") -- an option can carry its own image instead of,
   // or alongside, its text, so the picture itself is what the student taps.
   { table: 'options', column: 'image', definition: 'TEXT' },
+  // Mobile number for SMS notices (see lib/sms.js, lib/notify.js), stored in
+  // international form (+26771234567). Optional: students without one simply
+  // aren't texted.
+  { table: 'users', column: 'phone', definition: 'TEXT' },
 ];
 
 /** Converts this app's `?` placeholders to Postgres's `$1, $2, ...`. */

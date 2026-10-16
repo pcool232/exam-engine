@@ -9,6 +9,7 @@ const { parseQuestions, FORMAT_LABELS } = require('../lib/parsers');
 const { requireAdmin, setFlash } = require('../middleware/auth');
 const { checkPasswordStrength } = require('../lib/password');
 const { sendWelcomeMessage } = require('./auth');
+const notify = require('../lib/notify');
 
 const LABELS = exams.LABELS;
 
@@ -171,6 +172,9 @@ function register(app) {
         errors: [err.message],
       });
     }
+    // A brand-new exam has no questions yet, so it isn't announced here even
+    // if it was ticked "published" -- students hear about it when it's
+    // published with questions in it (see /publish) or created by import.
     setFlash(req, 'success', 'Exam created. Now add some questions.');
     return res.redirect(`/admin/exams/${exam.id}`);
   });
@@ -249,28 +253,20 @@ function register(app) {
     const wasPublished = Boolean(exam.is_published);
     await exams.setPublished(exam.id, publish);
 
-    // Announce it in every matching-category student's inbox -- only the
-    // moment it actually becomes visible to them (not on every toggle, and
-    // not while it's still a draft nobody but the admin can see).
+    // Announce it -- inbox, email and SMS -- to every student at its level,
+    // only the moment it actually becomes visible to them (not on every
+    // toggle, and not while it's still a draft nobody but the admin can see).
+    let notice = '';
     if (publish && !wasPublished && exam.category) {
       try {
-        const recipients = await users.listStudentsByCategory(exam.category);
-        if (recipients.length) {
-          await inbox.sendToMany(recipients.map((r) => r.id), {
-            kind: 'exam',
-            title: `New exam available: ${exam.title}`,
-            body: `A new ${exam.category} exam, "${exam.title}", has just been published. `
-              + `Head to your dashboard to give it a go.`,
-            examId: exam.id,
-          });
-        }
+        notice = ' ' + notify.summarise(await notify.announceExamPublished(exam));
       } catch (err) {
-        console.error('[admin] failed to send exam-published inbox messages:', err);
+        console.error('[admin] failed to announce published exam:', err);
       }
     }
 
     setFlash(req, 'success', publish
-      ? 'The exam is now live for students.'
+      ? `The exam is now live for students.${notice}`
       : 'The exam has been hidden from students.');
     return res.redirect(req.body.back === 'list' ? '/admin/exams' : `/admin/exams/${exam.id}`);
   });
@@ -571,9 +567,18 @@ function register(app) {
     delete req.session.pendingImport;
     req.session.save();
 
+    let notice = '';
+    if (exam.is_published && saved > 0) {
+      try {
+        notice = ' ' + notify.summarise(await notify.announceExamPublished(exam));
+      } catch (err) {
+        console.error('[admin] failed to announce imported exam:', err);
+      }
+    }
+
     setFlash(req, 'success',
       `"${exam.title}" created with ${saved} question${saved === 1 ? '' : 's'}.` +
-      (exam.is_published ? '' : ' Publish it when you are ready for students to see it.'));
+      (exam.is_published ? notice : ' Publish it when you are ready for students to see it.'));
     return res.redirect(`/admin/exams/${exam.id}`);
   });
 
@@ -717,6 +722,8 @@ function register(app) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.push('Please enter a valid email address.');
     const strength = checkPasswordStrength(password);
     if (strength) errors.push(strength);
+    const phone = users.cleanPhone(req.body.phone);
+    if (phone === null) errors.push('That mobile number does not look right. Use 71234567 or +267 71 234 567.');
     if (errors.length === 0 && (await users.findByEmail(email))) errors.push('That email address is already in use.');
 
     if (errors.length > 0) {
@@ -727,6 +734,7 @@ function register(app) {
     const created = await users.create({
       fullName, email, password, role,
       studentNumber: String(req.body.studentNumber || '').trim() || null,
+      phone,
     });
     await sendWelcomeMessage(created);
     setFlash(req, 'success', `Account created for ${fullName}.`);

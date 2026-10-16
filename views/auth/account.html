@@ -12,6 +12,7 @@
       <tbody>
         <tr><th>Name</th><td>{{ currentUser.full_name }}</td></tr>
         <tr><th>Email</th><td>{{ currentUser.email }}</td></tr>
+        <tr><th>Mobile</th><td>{{ currentUser.phone || 'Not set' }}</td></tr>
         {% if currentUser.student_number %}
           <tr><th>Student number</th><td>{{ currentUser.student_number }}</td></tr>
         {% endif %}
@@ -64,6 +65,27 @@
 </div>
 
 {% if currentUser.role !== 'admin' %}
+<div class="card">
+  <h2>Exam notices by text</h2>
+  <p class="small muted">When a new exam for your level is published we send it to your inbox and your email. Add a mobile number to get a text too. Leave it blank to stop texts.</p>
+
+  {% if phoneErrors.length > 0 %}
+    <div class="notice notice-error">
+      <ul>{% for error in phoneErrors %}<li>{{ error }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <form method="post" action="/account/phone" data-guard-submit>
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+    <div class="field">
+      <label for="phone">Mobile number</label>
+      <input type="tel" id="phone" name="phone" value="{{ currentUser.phone || '' }}"
+             autocomplete="tel" inputmode="tel" placeholder="71 234 567">
+    </div>
+    <button type="submit" class="button" data-busy-text="Saving…">Save mobile number</button>
+  </form>
+</div>
+
 <p class="small"><a href="/inbox">Go to your inbox &rarr;</a></p>
 {% endif %}
 

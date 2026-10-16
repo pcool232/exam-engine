@@ -7,6 +7,29 @@ const { hashPassword, verifyPassword } = require('../lib/password');
 /** The exam levels Botswana students revise for. */
 const CATEGORIES = ['PSLE', 'JC', 'BGCSE', 'IGCSE'];
 
+/**
+ * Normalises a mobile number to international form, or returns null when it
+ * can't be one. A Botswana number may be typed as 71234567, 071 234 567,
+ * 26771234567 or +267 71 234 567; numbers from elsewhere must start with +.
+ * Returns '' for blank input, so callers can tell "none given" from "invalid".
+ */
+function cleanPhone(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const hasPlus = raw.startsWith('+');
+  const digits = raw.replace(/[\s\-().]/g, '').replace(/^\+/, '');
+  if (!/^\d+$/.test(digits)) return null;
+  if (!hasPlus) {
+    // Botswana mobiles are eight digits beginning with 7.
+    const local = digits.replace(/^0/, '');
+    if (/^7\d{7}$/.test(local)) return `+267${local}`;
+    if (/^2677\d{7}$/.test(digits)) return `+${digits}`;
+    return null;
+  }
+  if (digits.startsWith('267')) return /^2677\d{7}$/.test(digits) ? `+${digits}` : null;
+  return /^[1-9]\d{7,14}$/.test(digits) ? `+${digits}` : null;
+}
+
 function cleanCategory(value) {
   const v = String(value || '').trim().toUpperCase();
   return CATEGORIES.includes(v) ? v : null;
@@ -25,10 +48,10 @@ async function findByGoogleSub(sub) {
   return (await get('SELECT * FROM users WHERE google_sub = ?', [String(sub)])) || null;
 }
 
-async function create({ fullName, email, password, role = 'student', studentNumber = null, category = null }) {
+async function create({ fullName, email, password, role = 'student', studentNumber = null, category = null, phone = null }) {
   const result = await run(
-    `INSERT INTO users (full_name, email, password_hash, role, student_number, category)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO users (full_name, email, password_hash, role, student_number, category, phone)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      RETURNING id`,
     [
       String(fullName).trim(),
@@ -37,6 +60,7 @@ async function create({ fullName, email, password, role = 'student', studentNumb
       role,
       studentNumber ? String(studentNumber).trim() : null,
       cleanCategory(category),
+      cleanPhone(phone) || null,
     ]
   );
   return findById(result.lastInsertRowid);
@@ -68,6 +92,13 @@ async function createFromGoogle({ fullName, email, googleSub }) {
 /** Links a Google account to an existing (email/password) user record. */
 async function linkGoogleSub(userId, googleSub) {
   await run('UPDATE users SET google_sub = ? WHERE id = ?', [String(googleSub), Number(userId)]);
+  return findById(userId);
+}
+
+/** Sets, changes or (with a blank value) removes a user's mobile number.
+ *  Callers validate with cleanPhone first. */
+async function setPhone(userId, phone) {
+  await run('UPDATE users SET phone = ? WHERE id = ?', [cleanPhone(phone) || null, Number(userId)]);
   return findById(userId);
 }
 
@@ -154,7 +185,10 @@ async function listStudents({ search = '' } = {}) {
 async function listStudentsByCategory(category) {
   const clean = cleanCategory(category);
   if (!clean) return [];
-  return all("SELECT id FROM users WHERE role = 'student' AND is_active = 1 AND category = ?", [clean]);
+  return all(
+    "SELECT id, full_name, email, phone FROM users WHERE role = 'student' AND is_active = 1 AND category = ?",
+    [clean]
+  );
 }
 
 async function listAdmins() {
@@ -172,5 +206,5 @@ module.exports = {
   authenticate, updatePassword,
   setResetToken, findByResetTokenHash, clearResetToken,
   setRole, setActive, remove, listStudents, listStudentsByCategory, listAdmins, countAll,
-  setCategory, cleanCategory, CATEGORIES,
+  setCategory, cleanCategory, CATEGORIES, setPhone, cleanPhone,
 };

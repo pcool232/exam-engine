@@ -7,6 +7,7 @@
  *   node scripts/import-exam.js exams/some-paper.json
  *   node scripts/import-exam.js exams/some-paper.json --publish
  *   node scripts/import-exam.js exams/some-paper.json --draft
+ *   node scripts/import-exam.js exams/some-paper.json --quiet   (publish without notifying students)
  *
  * Runs the exact same parsing and validation as Admin -> Import an exam
  * file (src/lib/parsers + src/models/exams.js), so a file that would work
@@ -37,6 +38,7 @@ if (!fs.existsSync(resolved)) {
 const { parseQuestions } = require('../src/lib/parsers');
 const exams = require('../src/models/exams');
 const { closeDb } = require('../src/db');
+const notify = require('../src/lib/notify');
 
 const buffer = fs.readFileSync(resolved);
 
@@ -110,6 +112,15 @@ const examData = {
 
   console.log(`Created "${exam.title}" (exam #${exam.id}) with ${saved} question${saved === 1 ? '' : 's'}.`);
   console.log(isPublished ? 'Published -- students can see it now.' : 'Saved as a draft -- publish it from the admin site when ready.');
+  // Announce it the same way the admin site does (inbox, email, SMS), unless
+  // --quiet asks not to.
+  if (isPublished && saved > 0 && !flags.has('--quiet')) {
+    try {
+      console.log(notify.summarise(await notify.announceExamPublished(exam)));
+    } catch (err) {
+      console.error('Could not announce the exam to students:', err.message);
+    }
+  }
   if (parsed.issues.length) {
     console.log(`\n${parsed.issues.length} question${parsed.issues.length === 1 ? '' : 's'} had issues and were skipped:`);
     for (const issue of parsed.issues.slice(0, 10)) {

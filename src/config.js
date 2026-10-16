@@ -71,7 +71,8 @@ const config = {
   // button simply does not appear -- email/password keeps working either way.
   googleClientId: (process.env.GOOGLE_CLIENT_ID || '').trim(),
 
-  // Outgoing email, used only for "forgot your password?" reset links (see
+  // Outgoing email, used for "forgot your password?" reset links and for
+  // telling students a new exam is live (see src/lib/notify.js) (see
   // src/lib/mailer.js). Leave SMTP_HOST blank and the link is logged to the
   // server console instead of emailed -- fine for local dev, not for
   // production. Works with a normal SMTP relay: Gmail with an app password,
@@ -87,6 +88,18 @@ const config = {
   // STARTTLS (port 587, the default). Sites also set this from the port
   // automatically, but a relay on a non-standard port may need it explicit.
   smtpSecure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+  // Public address of the site, used in links inside emails and texts that
+  // aren't sent in reply to a request (e.g. "a new exam is live").
+  appUrl: (process.env.APP_URL || 'https://rivaesa.app').trim().replace(/\/+$/, ''),
+
+  // SMS notices through Twilio (see src/lib/sms.js). Leave the SID blank and
+  // texts are logged to the console instead. Set either TWILIO_FROM (a Twilio
+  // number or approved alphanumeric sender ID) or a Messaging Service SID.
+  twilioAccountSid: (process.env.TWILIO_ACCOUNT_SID || '').trim(),
+  twilioAuthToken: (process.env.TWILIO_AUTH_TOKEN || '').trim(),
+  twilioFrom: (process.env.TWILIO_FROM || '').trim(),
+  twilioMessagingServiceSid: (process.env.TWILIO_MESSAGING_SERVICE_SID || '').trim(),
+
   // How long a password reset link stays valid for.
   resetTokenTtlMinutes: Number(process.env.RESET_TOKEN_TTL_MINUTES || 60),
 

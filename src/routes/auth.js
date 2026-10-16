@@ -27,6 +27,8 @@ function safeNext(value) {
   return /^\/(?!\/)[\w\-./?=&%]*$/.test(target) ? target : null;
 }
 
+const PHONE_ERROR = 'That mobile number does not look right. Use 71234567 or +267 71 234 567.';
+
 function landingFor(user) {
   return user.role === 'admin' ? '/admin' : '/dashboard';
 }
@@ -309,6 +311,7 @@ function register(app) {
       email: String(req.body.email || '').trim(),
       studentNumber: String(req.body.studentNumber || '').trim(),
       category: String(req.body.category || '').trim(),
+      phone: String(req.body.phone || '').trim(),
     };
     const password = String(req.body.password || '');
     const confirmPassword = String(req.body.confirmPassword || '');
@@ -317,6 +320,7 @@ function register(app) {
     if (values.fullName.length < 2) errors.push('Please enter your full name.');
     if (!EMAIL_PATTERN.test(values.email)) errors.push('Please enter a valid email address.');
     if (!users.cleanCategory(values.category)) errors.push('Choose which exam you are revising for: PSLE, JC, BGCSE or IGCSE.');
+    if (users.cleanPhone(values.phone) === null) errors.push(PHONE_ERROR);
     const strength = checkPasswordStrength(password);
     if (strength) errors.push(strength);
     if (password !== confirmPassword) errors.push('The two passwords do not match.');
@@ -336,6 +340,7 @@ function register(app) {
       password,
       studentNumber: values.studentNumber || null,
       category: values.category,
+      phone: values.phone,
       role: 'student',
     });
     await sendWelcomeMessage(user);
@@ -393,7 +398,22 @@ function register(app) {
 
   app.get('/account', (req, res) => {
     if (!req.user) return res.redirect('/login');
-    return res.render('auth/account', { title: 'My account', errors: [] });
+    return res.render('auth/account', { title: 'My account', errors: [], phoneErrors: [] });
+  });
+
+  // Mobile number for exam notices by SMS. Blank removes it, which is also
+  // how a student stops the texts.
+  app.post('/account/phone', async (req, res) => {
+    if (!req.user) return res.redirect('/login');
+    const phone = users.cleanPhone(req.body.phone);
+    if (phone === null) {
+      return res.status(400).render('auth/account', { title: 'My account', errors: [], phoneErrors: [PHONE_ERROR] });
+    }
+    await users.setPhone(req.user.id, phone);
+    setFlash(req, 'success', phone
+      ? 'Mobile number saved. You will get a text when a new exam is published.'
+      : 'Mobile number removed. You will not get texts from us.');
+    return res.redirect('/account');
   });
 
   app.post('/account/password', async (req, res) => {
@@ -410,7 +430,7 @@ function register(app) {
     if (next !== confirm) errors.push('The two new passwords do not match.');
 
     if (errors.length > 0) {
-      return res.status(400).render('auth/account', { title: 'My account', errors });
+      return res.status(400).render('auth/account', { title: 'My account', errors, phoneErrors: [] });
     }
 
     await users.updatePassword(req.user.id, next);
