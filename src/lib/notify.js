@@ -70,17 +70,23 @@ function emailFor(exam, student) {
 
 /**
  * Announces a just-published exam to every active student at its level.
- * Returns counts for the admin's flash message.
+ * `channels` picks which of inbox/email/sms to use (all by default) -- the
+ * admin's "Notify students" button uses it to send email or SMS for a paper
+ * whose inbox notice already went out. Returns counts for the admin.
  */
-async function announceExamPublished(exam) {
-  const result = { students: 0, inbox: 0, emailed: 0, emailFailed: 0, texted: 0, smsFailed: 0, emailOn: Boolean(config.smtpHost), smsOn: smsConfigured() };
+async function announceExamPublished(exam, channels = {}) {
+  const use = { inbox: true, email: true, sms: true, ...channels };
+  const result = {
+    students: 0, inbox: 0, emailed: 0, emailFailed: 0, texted: 0, smsFailed: 0,
+    emailOn: Boolean(config.smtpHost), smsOn: smsConfigured(), use,
+  };
   if (!exam || !exam.category) return result;
 
   const recipients = await users.listStudentsByCategory(exam.category);
   result.students = recipients.length;
   if (!recipients.length) return result;
 
-  try {
+  if (use.inbox) try {
     result.inbox = await inbox.sendToMany(recipients.map((r) => r.id), {
       kind: 'exam',
       title: `New exam available: ${exam.title}`,
@@ -92,7 +98,7 @@ async function announceExamPublished(exam) {
     console.error('[notify] failed to send exam-published inbox messages:', err);
   }
 
-  if (result.emailOn) {
+  if (use.email && result.emailOn) {
     await inBatches(recipients.filter((r) => r.email), async (student) => {
       try {
         if (await sendMail(emailFor(exam, student))) result.emailed++;
@@ -103,7 +109,7 @@ async function announceExamPublished(exam) {
     });
   }
 
-  if (result.smsOn) {
+  if (use.sms && result.smsOn) {
     const body = smsBody(exam);
     await inBatches(recipients.filter((r) => r.phone), async (student) => {
       try {
@@ -121,9 +127,12 @@ async function announceExamPublished(exam) {
 /** One line for the admin, e.g. "Students notified: 7 inbox, 7 emails, 4 texts." */
 function summarise(r) {
   if (!r || !r.students) return 'No students at this level to notify yet.';
-  const parts = [`${r.inbox} inbox`];
-  parts.push(r.emailOn ? `${r.emailed} email${r.emailed === 1 ? '' : 's'}` : 'email not set up');
-  parts.push(r.smsOn ? `${r.texted} text${r.texted === 1 ? '' : 's'}` : 'SMS not set up');
+  const use = r.use || { inbox: true, email: true, sms: true };
+  const parts = [];
+  if (use.inbox) parts.push(`${r.inbox} inbox`);
+  if (use.email) parts.push(r.emailOn ? `${r.emailed} email${r.emailed === 1 ? '' : 's'}` : 'email not set up');
+  if (use.sms) parts.push(r.smsOn ? `${r.texted} text${r.texted === 1 ? '' : 's'}` : 'SMS not set up');
+  if (!parts.length) return 'Nothing was sent -- no channel was chosen.';
   const failed = r.emailFailed + r.smsFailed;
   return `Students notified: ${parts.join(', ')}.` + (failed ? ` ${failed} could not be delivered (see the server log).` : '');
 }

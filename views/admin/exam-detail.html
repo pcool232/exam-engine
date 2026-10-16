@@ -57,6 +57,22 @@
   </div>
 </div>
 
+{% if exam.is_published && exam.category %}
+<div class="card">
+  <h2 style="margin:0">Notify students</h2>
+  <p class="muted small" style="margin:.2rem 0 .8rem">
+    Students at {{ exam.category }} were told when this paper was published. Use this to send it again on a channel that wasn't set up then.
+  </p>
+  <form method="post" action="/admin/exams/{{ exam.id }}/announce" class="row" data-guard-submit>
+    <input type="hidden" name="_csrf" value="{{ csrfToken }}">
+    <label class="small"><input type="checkbox" name="email" value="1" {% if emailOn %}checked{% else %}disabled{% endif %}> Email{% if !emailOn %} (not set up){% endif %}</label>
+    <label class="small"><input type="checkbox" name="sms" value="1" {% if smsOn %}checked{% else %}disabled{% endif %}> Text message{% if !smsOn %} (not set up){% endif %}</label>
+    <label class="small"><input type="checkbox" name="inbox" value="1"> Inbox (again)</label>
+    <button type="submit" class="button button-small" data-busy-text="Sending…">Send notice</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="card">
   <div class="card-title">
     <h2>Questions</h2>

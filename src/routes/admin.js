@@ -10,6 +10,8 @@ const { requireAdmin, setFlash } = require('../middleware/auth');
 const { checkPasswordStrength } = require('../lib/password');
 const { sendWelcomeMessage } = require('./auth');
 const notify = require('../lib/notify');
+const config = require('../config');
+const { isConfigured: smsConfigured } = require('../lib/sms');
 
 const LABELS = exams.LABELS;
 
@@ -194,6 +196,8 @@ function register(app) {
       performance,
       attemptCount: attemptRows.length,
       resultCount,
+      emailOn: Boolean(config.smtpHost),
+      smsOn: smsConfigured(),
     });
   });
 
@@ -269,6 +273,26 @@ function register(app) {
       ? `The exam is now live for students.${notice}`
       : 'The exam has been hidden from students.');
     return res.redirect(req.body.back === 'list' ? '/admin/exams' : `/admin/exams/${exam.id}`);
+  });
+
+  // Sends (or re-sends) the "new exam" notice on the channels the admin
+  // ticks -- e.g. email for a paper published before email was set up, or
+  // SMS once Twilio is configured, without a second inbox message.
+  app.post('/admin/exams/:id/announce', requireAdmin, async (req, res) => {
+    const exam = await getExamOr404(req.params.id);
+    if (!exam.is_published) {
+      setFlash(req, 'error', 'Publish the exam before notifying students about it.');
+      return res.redirect(`/admin/exams/${exam.id}`);
+    }
+    const channels = {
+      inbox: req.body.inbox === '1',
+      email: req.body.email === '1',
+      sms: req.body.sms === '1',
+    };
+    const result = await notify.announceExamPublished(exam, channels);
+    const failed = result.emailFailed + result.smsFailed;
+    setFlash(req, failed ? 'error' : 'success', notify.summarise(result));
+    return res.redirect(`/admin/exams/${exam.id}`);
   });
 
   app.post('/admin/exams/:id/delete', requireAdmin, async (req, res) => {
