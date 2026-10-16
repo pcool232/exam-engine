@@ -198,8 +198,8 @@ Questions 5–8, 18 and 32 are the least certain.
 Design and Technology, Paper 1 (17/1), October/November 2021**
 40 questions · 40 marks · 1 hour · category JC
 
-Transcribed from photographs of the paper. Twenty-seven questions carry a
-picture, cropped and cleaned to a white background (photographs are only
+Transcribed from photographs of the paper. Thirty-one questions carry a
+picture (27 separate figures, some shared), cropped and cleaned to a white background (photographs are only
 contrast-lifted, so detail is kept). In questions 1, 5, 16, 22, 23, 28, 29
 and 34 the answers are pictures, so the whole lettered figure sits in the
 question and the options read "Shown at A" and so on. Option shuffling is off.
