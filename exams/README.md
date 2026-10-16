@@ -156,3 +156,36 @@ matter. Most are settled by definition. Check these against the BEC key:
 | 13 | Software for enhancing drawings | A — Photoshop | Illustrator is also defensible |
 
 Questions 10, 5, 22 and 36 are the least certain.
+
+---
+
+## bec-jc-design-technology-2023-p1.json
+
+**Botswana Examinations Council — Junior Certificate Examination
+Design and Technology, Paper 1 (17/1), October/November 2023**
+40 questions · 40 marks · 1 hour · category JC
+
+Transcribed from photographs of the paper. Twenty questions carry a diagram,
+cropped from the photos, cleaned to a white background and embedded in the
+file. The Covid-19 sign post figure is shared by questions 5–8. In questions
+18, 20 and 36 the whole lettered figure sits in the question and the options
+read "Shown at A" and so on; in question 32 each option carries its own
+drawing. Option shuffling is off for that reason.
+
+### Answers you should check before publishing
+
+The paper has no marking key, so every answer was worked out from the subject
+matter. Check these against the BEC key:
+
+| Q | Topic | Answer used here | Why it's uncertain |
+| --- | --- | --- | --- |
+| 5–8 | Sign post material, marking out, finish, drill bit | C Aluminium, B Spring dividers, B Paint, A Twist bit | All four assume a metal sign post; if the key treats it as wood, 6 becomes D (compasses) and 8 may change |
+| 18 | Construction of a perpendicular | B | C (bisecting EF) also produces a perpendicular |
+| 32 | Front view in direction F | C | Depends on reading the hidden channel in the isometric drawing |
+| 35 | Materials for the model bridge | C — Balsa wood and dowel | Paper and sticks is also defensible |
+| 27 | Transparent plastic | B — Polyester resin | Epoxy resin also sets clear |
+| 29 | Small drill bits at slow speed | C — Increases breakage | Wording is loose |
+| 12 | Choosing a chisel | A — Shape of the work | Type of material could be argued |
+| 37 | Mechanism for lifting maize bags | A — Pulley and belt | Rack and pinion also lifts |
+
+Questions 5–8, 18 and 32 are the least certain.
